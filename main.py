@@ -14,7 +14,8 @@ def train_model(model : FrozenVit,
                 train_loader,
                 cfg,
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")):
-    model.heads.train()
+    
+    model.model.heads.train()
 
     for i in range(cfg.num_epochs):
 
@@ -30,3 +31,13 @@ def train_model(model : FrozenVit,
 
             if (i+1)%cfg.train_log_interval == 0:
                 print(f"Epoch {i+1}/{cfg.num_epochs}, Loss: {loss.item():.4f}")
+
+def val_model(model : FrozenVit,
+              criterion,
+              val_loader,
+              cfg,
+              ):
+    model.model.heads.eval()
+    # define the accuracy metric
+    
+
