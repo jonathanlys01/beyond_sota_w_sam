@@ -1,10 +1,8 @@
-import torchvision.transforms as transforms
-
 import torchvision.transforms.functional as F
 
-import torch.nn as nn
+from typing import Union
 
-from typing import Optional, Union
+import random
 
 def LocalizedRandomResizedCrop(
                 image, 
@@ -35,14 +33,53 @@ def LocalizedRandomResizedCrop(
 
         bbox = list(bbox)
 
+        # for long object, we need to make sure the crop is not too big
+
+        area_img = min(image.size[0], image.size[1]) ** 2
+
+        area_obj = min(bbox[2] - bbox[0], bbox[3] - bbox[1]) ** 2
 
 
+        effective_scale = random.uniform(
+                min(scale[0], area_obj / area_img),
+                min(scale[1], area_obj / area_img / threshold),
+        )
 
+        effective_ratio = random.uniform(ratio[0], ratio[1])
+
+        area_crop = effective_scale * area_img
+
+        if area_crop > area_obj:
+            range_x = ((area_crop / effective_ratio) ** 0.5 - (bbox[2] - bbox[0])) / 2
+            range_y = ((area_crop * effective_ratio) ** 0.5 - (bbox[3] - bbox[1])) / 2
+
+        else: # area_crop <= area_obj
+            range_x = (bbox[2] - bbox[0] - area_crop ** 0.5/effective_ratio) / 2 + ((1-threshold)*area_crop)**0.5
+            range_y = (bbox[3] - bbox[1] - area_crop ** 0.5*effective_ratio) / 2 + ((1-threshold)*area_crop)**0.5
+            
 
         
+        box_center = [(bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2]
 
-    
-        
+        crop_center = [
+                box_center[0] + random.uniform(-range_x, range_x),
+                box_center[1] + random.uniform(-range_y, range_y),
+        ]
+
+        crop_size = (area_crop * effective_ratio) ** 0.5
+
+        crop_bbox = [
+                crop_center[0] - crop_size / 2,
+                crop_center[1] - crop_size / 2,
+                crop_center[0] + crop_size / 2,
+                crop_center[1] + crop_size / 2,
+        ]
+
+        crop_bbox = [int(x) for x in crop_bbox]
+
+        return F.resized_crop(image, *crop_bbox, size, antialias=True)
+
+
 
 
 
