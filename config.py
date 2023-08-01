@@ -2,7 +2,7 @@ from box import Box
 
 
 config = {
-    "wandb" : False,
+    "wandb" : True,
     "use_box" : True,
     "log_interval" : 1,
     "num_epochs" : 100,
@@ -12,7 +12,7 @@ config = {
 
 
     "num_workers" : 8,
-    "batch_size" : 64,
+    "batch_size" : 256,
 
     "dataset" : {
         "img_dir" : "/mnt/data/CUB_200_2011/images/",
@@ -22,7 +22,7 @@ config = {
     },
 
     "model" : {
-        "type" : "dinov2_vitb14", #     "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14"
+        "type" : "dinov2_vitl14", #     "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14"
         "MLP_dim" : 200,
         "n_classes" : 200
     },
@@ -32,6 +32,8 @@ config = {
         "lr" : 1e-2,
         #"weight_decay" : 1e-2,
     },
+
+    "alpha" : 0.3
 
 }
 

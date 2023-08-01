@@ -77,14 +77,10 @@ def val_model(model : nn.Module,
 
     return acc_t/len(val_loader), loss_t/len(val_loader)
     
-
-
-if __name__=="__main__":
-
-    # 1st run
+def main(cfg, name = "dino-sota-cub"):
 
     if cfg.wandb:
-        run = wandb.init(project="dino-sota-cub_1",config=cfg)
+        run = wandb.init(project=name,config=cfg)
 
     cfg.use_box = False
 
@@ -110,10 +106,6 @@ if __name__=="__main__":
 
     criterion = nn.CrossEntropyLoss()
 
-    first_acc, first_loss = val_model(model,criterion,val_loader)
-    print(f"First accuracy: {first_acc:.4f}")
-    print(f"First loss: {first_loss:.4f}")
-
     print("Training started!")
     train_model(model,criterion,optimizer,train_loader, val_loader, cfg)
     print("Training done!")
@@ -122,45 +114,44 @@ if __name__=="__main__":
     print(f"Final accuracy: {final_acc:.4f}")
 
 
+if __name__=="__main__":
 
-    # 2nd run
-    if cfg.wandb:
-        run = wandb.init(project="dino-sota-cub_2",config=cfg)
-    
+    cfg.use_box = False
+    main(cfg,name="dino-sota-cub_base")
+
     cfg.use_box = True
+    cfg.alpha = 0.1
+    main(cfg,name="dino-sota-cub_box01")
 
-    train_loader,val_loader = load_cub_datasets(cfg)
-            
-    model = get_model(cfg.model.type,cfg.model.MLP_dim,cfg.model.n_classes)
+    cfg.use_box = True
+    cfg.alpha = 0.3
+    main(cfg,name="dino-sota-cub_box03")
 
+    cfg.use_box = True
+    cfg.alpha = 0.5
+    main(cfg,name="dino-sota-cub_box05")
 
-    model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-
-    params = []
-    params.extend(model.head.parameters())
-
-
-    if cfg.opt.type == "adam":
-        optimizer = torch.optim.Adam(params,lr=cfg.opt.lr)
-    elif cfg.opt.type == "sgd":
-        optimizer = torch.optim.SGD(params,lr=cfg.opt.lr)
-    elif cfg.opt.type == "adamW":
-        optimizer = torch.optim.AdamW(params,lr=cfg.opt.lr)
+    cfg.use_box = True
+    cfg.alpha = 0.7
+    main(cfg,name="dino-sota-cub_box07")
 
 
+    cfg.use_box = True
+    cfg.alpha = 0.9
+    main(cfg,name="dino-sota-cub_box09")
 
-    criterion = nn.CrossEntropyLoss()
+    cfg.use_box = True
+    cfg.alpha = 0.3
+    cfg.opt.type = "sgd"
+    cfg.opt.lr = 0.1
+    main(cfg,name="dino-sota-cub_box03_sgd")
 
-    first_acc, first_loss = val_model(model,criterion,val_loader)
-    print(f"First accuracy: {first_acc:.4f}")
-    print(f"First loss: {first_loss:.4f}")
+    cfg.use_box = False
+    main(cfg,name="dino-sota-cub_base_sgd")
 
-    print("Training started!")
-    train_model(model,criterion,optimizer,train_loader, val_loader, cfg)
-    print("Training done!")
+    
 
-    final_acc, final_loss = val_model(model,criterion,val_loader)
-    print(f"Final accuracy: {final_acc:.4f}")
+
 
 
     """while (ans:= input("Do you want to save the model? (y/n) ")) not in ["y","n"]:

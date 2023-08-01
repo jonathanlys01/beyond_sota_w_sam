@@ -15,7 +15,7 @@ from random import shuffle
 
 class CUBDataset(Dataset):
 
-    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms = None, use_box = False, patch_size = 14, size = 224) -> None:
+    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms = None, use_box = False, patch_size = 14, size = 224, alpha = 0.3) -> None:
         super().__init__()
 
         self.path_to_img = path_to_img
@@ -26,6 +26,7 @@ class CUBDataset(Dataset):
         self.use_box = use_box
         self.patch_size = patch_size
         self.size = size
+        self.alpha = alpha
 
         if transforms is None:
             print("Using default transforms")
@@ -70,7 +71,7 @@ class CUBDataset(Dataset):
 
         if self.use_box:
             box = self.boxes[id]
-            img = LocalizedRandomResizedCrop(img, box, size = self.size, patch_size = self.patch_size, alpha=0.3)
+            img = LocalizedRandomResizedCrop(img, box, size = self.size, patch_size = self.patch_size, alpha=self.alpha)
             
         else:
             img = transforms.RandomResizedCrop((self.size,self.size))(img)
@@ -81,7 +82,7 @@ class CUBDataset(Dataset):
         return img, label # img is a tensor, label is a int
  
 
-def load_cub_datasets(cfg, ratio = 0.7):
+def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
 
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
@@ -116,7 +117,8 @@ def load_cub_datasets(cfg, ratio = 0.7):
                                 ]),
                           use_box = cfg.use_box,
                           size = cfg.img_size,
-                          patch_size = cfg.patch_size
+                          patch_size = cfg.patch_size,
+                          alpha = alpha
                             )
     
     val = CUBDataset(path_to_img=cfg.dataset.img_dir,
@@ -130,7 +132,8 @@ def load_cub_datasets(cfg, ratio = 0.7):
                             ]),
                         use_box = False,
                         size = cfg.img_size,
-                        patch_size = cfg.patch_size
+                        patch_size = cfg.patch_size,
+                        alpha = alpha
                         )
 
     train_loader = DataLoader(train,
