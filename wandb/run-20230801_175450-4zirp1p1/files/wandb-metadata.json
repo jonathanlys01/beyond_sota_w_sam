@@ -1,0 +1,125 @@
+{
+    "os": "Linux-5.19.0-46-generic-x86_64-with-glibc2.36",
+    "python": "3.10.7",
+    "heartbeatAt": "2023-08-01T15:54:51.737733",
+    "startedAt": "2023-08-01T15:54:50.863225",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/someone/stage_jonathan/beyond_sota_w_sam/main.py",
+    "codePath": "main.py",
+    "git": {
+        "remote": "https://github.com/jonathanlys01/beyond_sota_w_sam.git",
+        "commit": "16a6b2497aa169e856692a55213abe67da286eb6"
+    },
+    "email": "jonathanlystahiti@gmail.com",
+    "root": "/home/someone/stage_jonathan/beyond_sota_w_sam",
+    "host": "someone-Precision-Tower-5810",
+    "username": "someone",
+    "executable": "/home/someone/stage_jonathan/lightning-sam/lightning-sam/l_sam_env/bin/python3",
+    "cpu_count": 16,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 1380.158875,
+        "min": 1200.0,
+        "max": 1700.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1197.495,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.144,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1649.03,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1197.478,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1197.356,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.159,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.328,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.036,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1296.316,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1697.336,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1197.664,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1197.282,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.142,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1597.168,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1197.28,
+            "min": 1200.0,
+            "max": 1700.0
+        },
+        {
+            "current": 1696.546,
+            "min": 1200.0,
+            "max": 1700.0
+        }
+    ],
+    "disk": {
+        "total": 218.50913619995117,
+        "used": 184.56211853027344
+    },
+    "gpu": "NVIDIA TITAN X (Pascal)",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA TITAN X (Pascal)",
+            "memory_total": 12884901888
+        }
+    ],
+    "memory": {
+        "total": 31.3082275390625
+    }
+}
