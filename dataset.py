@@ -12,6 +12,8 @@ import tqdm as tqdm
 
 from random import shuffle
 
+import torchvision
+from utils import RandomCutmix, RandomMixup
 
 class CUBDataset(Dataset):
 
@@ -77,8 +79,6 @@ class CUBDataset(Dataset):
             img = transforms.RandomResizedCrop((self.size,self.size))(img)
 
         img = self.transforms(img).float()
-
-
         return img, label # img is a tensor, label is a int
  
 
@@ -136,16 +136,29 @@ def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
                         alpha = alpha
                         )
 
+    mixupcutmix = torchvision.transforms.RandomChoice(
+    [RandomMixup(cfg.model.n_classes, p=1.0, alpha=cfg.other.mixup_alpha),
+     RandomCutmix(cfg.model.n_classes, p=1.0, alpha=cfg.other.cutmix_alpha)])
+    
+    from torch.utils.data.dataloader import default_collate
+    def collate_fn(batch):
+        return mixupcutmix(*default_collate(batch))
+    
+
+
     train_loader = DataLoader(train,
                               batch_size=cfg.batch_size,
                               shuffle=True,
                               num_workers=cfg.num_workers,
-                                pin_memory=True)
+                              collate_fn=collate_fn,
+                              pin_memory=True,
+                              persistent_workers=True)
     val_loader = DataLoader(val,
                             batch_size=cfg.batch_size,
                             shuffle=False,
                             num_workers=cfg.num_workers,
-                            pin_memory=True)
+                            pin_memory=True,
+                            persistent_workers=True)
     
     return train_loader, val_loader
                         

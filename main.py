@@ -2,6 +2,8 @@ import torch
 import torchvision
 import wandb
 
+wandb.login()
+
 from dataset import load_cub_datasets
 
 from config import cfg
@@ -11,13 +13,10 @@ import torch.nn as nn
 from model import get_model
 import datetime
 import os
+from utils import ExponentialMovingAverage
 
-
-
-# https://docs.wandb.ai/guides/integrations/pytorch
-
-
-def train_model(model : nn.Module , 
+def train_model(model : nn.Module ,
+                ema : nn.Module, 
                 criterion,
                 optimizer,
                 train_loader,
@@ -40,16 +39,27 @@ def train_model(model : nn.Module ,
             optimizer.step()
             optimizer.zero_grad()
 
+            if i%32 == 0:
+                ema.update_parameters(model)
+
+
+
+
         if (iter+1)%cfg.log_interval == 0:
             acc, loss_ = val_model(model,criterion,val_loader)
+
+            ema_acc, ema_loss = val_model(ema,criterion,val_loader)
             
             if cfg.wandb:
 
                 wandb.log({"loss":loss_,
                             "acc":acc,})
-                print("Logged")
+                
+                wandb.log({"ema_loss":ema_loss,
+                            "ema_acc":ema_acc,})
+                
             
-            print(f"Epoch [{iter+1}/{cfg.num_epochs}] | Loss: {loss.item():.4f} | Acc: {acc:.4f}")
+            print(f"Epoch [{iter+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f}))")
 
 def val_model(model : nn.Module,
               criterion,
@@ -77,51 +87,112 @@ def val_model(model : nn.Module,
 
     return acc_t/len(val_loader), loss_t/len(val_loader)
     
-def main(cfg, name = "dino-sota-cub"):
+def main(cfg, project = "beyond_sota", name = None):
 
     if cfg.wandb:
-        run = wandb.init(project=name,config=cfg)
-
-    cfg.use_box = False
+        run = wandb.init(project=project,
+                         config=cfg,
+                         name=name,)
 
     train_loader,val_loader = load_cub_datasets(cfg)
             
-    model = get_model(cfg.model.type,cfg.model.MLP_dim,cfg.model.n_classes)
+    #model = get_model(cfg.model.type,cfg.model.MLP_dim,cfg.model.n_classes)
 
+    model = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    model.fc = nn.Sequential(nn.Linear(model.fc.in_features,cfg.model.n_classes),
+                             nn.Softmax(dim=1))
+
+    for m in model.fc.modules():
+        if isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+
+    
 
     model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-    params = []
-    params.extend(model.head.parameters())
+    ema = ExponentialMovingAverage(model, decay=cfg.other.ema_decay)
 
+    ema.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+    
+    #params = []
+    #params.extend(model.head.parameters())
+
+    """params = [
+        {'params':model.conv1.parameters()},
+        {'params':model.bn1.parameters()},
+        {'params':model.relu.parameters()},
+        {'params':model.maxpool.parameters()},
+        {"params":model.layer1.parameters()},
+        {"params":model.layer2.parameters()},
+        {"params":model.layer3.parameters()},
+        {"params":model.layer4.parameters()},
+        {"params":model.avgpool.parameters()},
+        {"params":model.fc.parameters(), "lr":cfg.opt.lr*100}, # last layer with higher lr
+    ]"""
+    for param in model.parameters():
+        param.requires_grad = False
+        
+    for param in model.fc.parameters():
+        param.requires_grad = True
+
+    params = model.fc.parameters()
+    
 
     if cfg.opt.type == "adam":
-        optimizer = torch.optim.Adam(params,lr=cfg.opt.lr)
+        optimizer = torch.optim.Adam(params,lr=cfg.opt.lr, weight_decay=cfg.opt.weight_decay)
     elif cfg.opt.type == "sgd":
-        optimizer = torch.optim.SGD(params,lr=cfg.opt.lr)
+        optimizer = torch.optim.SGD(params,lr=cfg.opt.lr, momentum=cfg.opt.momentum, weight_decay=cfg.opt.weight_decay)
     elif cfg.opt.type == "adamW":
-        optimizer = torch.optim.AdamW(params,lr=cfg.opt.lr)
+        optimizer = torch.optim.AdamW(params,lr=cfg.opt.lr, weight_decay=cfg.opt.weight_decay)
 
 
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=cfg.other.label_smoothing)
 
-    print("Training started!")
-    train_model(model,criterion,optimizer,train_loader, val_loader, cfg)
-    print("Training done!")
+    print("First training")
+    cfg.num_epochs = 100
+    train_model(model,ema, criterion,optimizer,train_loader, val_loader, cfg)
+    
+    print("Second training")
+    cfg.num_epochs = 200
+    for param in model.parameters():
+        param.requires_grad = True
 
-    final_acc, final_loss = val_model(model,criterion,val_loader)
-    print(f"Final accuracy: {final_acc:.4f}")
+
+    params = [
+        {'params':model.conv1.parameters()},
+        {'params':model.bn1.parameters()},
+        {'params':model.relu.parameters()},
+        {'params':model.maxpool.parameters()},
+        {"params":model.layer1.parameters()},
+        {"params":model.layer2.parameters()},
+        {"params":model.layer3.parameters()},
+        {"params":model.layer4.parameters()},
+        {"params":model.avgpool.parameters()},
+        {"params":model.fc.parameters(), "lr":cfg.opt.lr}, 
+    ]
+
+    if cfg.opt.type == "adam":
+        optimizer2 = torch.optim.Adam(params,lr=cfg.opt.lr/10, momentum=cfg.opt.momentum, weight_decay=cfg.opt.weight_decay)
+    elif cfg.opt.type == "sgd":
+        optimizer2 = torch.optim.SGD(params,lr=cfg.opt.lr/10, momentum=cfg.opt.momentum, weight_decay=cfg.opt.weight_decay)
+    elif cfg.opt.type == "adamW":
+        optimizer2 = torch.optim.AdamW(params,lr=cfg.opt.lr/10, momentum=cfg.opt.momentum, weight_decay=cfg.opt.weight_decay)
+    
+    train_model(model,ema, criterion,optimizer2,train_loader, val_loader, cfg)
+
+    final_acc, _ = val_model(model,criterion,val_loader)
+    
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    os.makedirs("models",exist_ok=True)
+    torch.save(model.state_dict(), f"models/{name}_{final_acc:.4f}_{date}.pth")
 
 
 if __name__=="__main__":
 
     cfg.use_box = False
     main(cfg,name="dino-sota-cub_base")
-
-    cfg.use_box = True
-    cfg.alpha = 0.1
-    main(cfg,name="dino-sota-cub_box01")
 
     cfg.use_box = True
     cfg.alpha = 0.3
@@ -131,30 +202,11 @@ if __name__=="__main__":
     cfg.alpha = 0.5
     main(cfg,name="dino-sota-cub_box05")
 
-    cfg.use_box = True
-    cfg.alpha = 0.7
-    main(cfg,name="dino-sota-cub_box07")
-
-
-    cfg.use_box = True
-    cfg.alpha = 0.9
-    main(cfg,name="dino-sota-cub_box09")
-
-    cfg.use_box = True
-    cfg.alpha = 0.3
-    cfg.opt.type = "sgd"
-    cfg.opt.lr = 0.1
-    main(cfg,name="dino-sota-cub_box03_sgd")
-
-    cfg.use_box = False
-    main(cfg,name="dino-sota-cub_base_sgd")
-
+    wandb.finish()
     
 
 
-
-
-    """while (ans:= input("Do you want to save the model? (y/n) ")) not in ["y","n"]:
+    """while (ans:= input("Do you want to save the model? (y/n) ")).lower() not in ["y","n"]:
         print("Invalid input, please try again!")
 
 
