@@ -17,7 +17,7 @@ from utils import RandomCutmix, RandomMixup
 
 class CUBDataset(Dataset):
 
-    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms = None, use_box = False, patch_size = 14, size = 224, alpha = 0.3) -> None:
+    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms, use_box = False, patch_size = 14, size = 224, alpha = 0.3) -> None:
         super().__init__()
 
         self.path_to_img = path_to_img
@@ -30,14 +30,13 @@ class CUBDataset(Dataset):
         self.size = size
         self.alpha = alpha
 
-        if transforms is None:
-            print("Using default transforms")
-            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
-            transforms = transforms.Compose([
-                transforms.Resize((cfg.img_size,cfg.img_size)),
-                transforms.ToTensor(),
-                normalize
-            ])
+        if self.use_box:
+            print("Using localized crop")
+        else:
+            print("Using random crop")
+
+        self.normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
+
         self.transforms = transforms
 
         with open(label_file,"r") as f:
@@ -79,15 +78,16 @@ class CUBDataset(Dataset):
             img = transforms.RandomResizedCrop((self.size,self.size))(img)
 
         img = self.transforms(img).float()
-        return img, label # img is a tensor, label is a int
+
+        img = self.normalize(img)
+
+        label = torch.tensor(label).long()
+
+        return img, label # img is a tensor, label is an int
  
 
 def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
 
-
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std = [0.229, 0.224, 0.225])
-
-    
     img_names = {}
 
     with open(cfg.dataset.img_file,"r") as f:
@@ -112,7 +112,6 @@ def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
                                 transforms.RandomHorizontalFlip(),
                                 transforms.TrivialAugmentWide(),
                                 transforms.ToTensor(),
-                                normalize,
                                 transforms.RandomErasing(0.1),
                                 ]),
                           use_box = cfg.use_box,
@@ -126,31 +125,18 @@ def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
                         indexes = val_indexes,
                         label_file=cfg.dataset.label_file,
                         box_file=cfg.dataset.box_file,
-                        transforms=transforms.Compose([
-                            transforms.ToTensor(),
-                            normalize,
-                            ]),
+                        transforms=transforms.ToTensor(),
                         use_box = False,
                         size = cfg.img_size,
                         patch_size = cfg.patch_size,
                         alpha = alpha
                         )
-
-    mixupcutmix = torchvision.transforms.RandomChoice(
-    [RandomMixup(cfg.model.n_classes, p=1.0, alpha=cfg.other.mixup_alpha),
-     RandomCutmix(cfg.model.n_classes, p=1.0, alpha=cfg.other.cutmix_alpha)])
     
-    from torch.utils.data.dataloader import default_collate
-    def collate_fn(batch):
-        return mixupcutmix(*default_collate(batch))
-    
-
 
     train_loader = DataLoader(train,
                               batch_size=cfg.batch_size,
                               shuffle=True,
                               num_workers=cfg.num_workers,
-                              collate_fn=collate_fn,
                               pin_memory=True,
                               persistent_workers=True)
     val_loader = DataLoader(val,

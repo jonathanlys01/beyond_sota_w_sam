@@ -52,3 +52,33 @@ def get_model(type, MLP_dim, n_classes):
     model.norm.train()
 
     return model
+
+
+
+class NCM(nn.Module):
+    """
+    NCM class for the nearest class mean classifier, susing the cosine similarity as distance metric
+    """
+    def __init__(self, n_classes, feat_dim):
+        """
+        n_classes: int -> number of classes
+        feat_dim: int -> dimension of the features (before the head)
+        """
+        super(NCM, self).__init__()
+        self.n_classes = n_classes
+        self.feat_dim = feat_dim
+        self.centers = nn.Parameter(torch.zeros(n_classes, feat_dim)    ) 
+        self.cos = nn.CosineSimilarity(dim=-1)
+
+    def forward(self, x):
+        """
+        x: torch.Tensor -> features before the head
+
+        returns: torch.Tensor -> the logits of the NCM classifier
+        
+        """
+
+        # B x n_feats -> B x n_classes
+
+
+        return nn.Softmax(dim=-1)(self.cos(x.unsqueeze(1), self.centers.unsqueeze(0)))
