@@ -46,7 +46,7 @@ def train_model(model : nn.Module ,
             
             optimizer.zero_grad()
 
-            if i%32 == 0:
+            if i%cfg.model.ema_step == 0:
                 ema.update_parameters(model)
         
         scheduler.step()
@@ -200,13 +200,9 @@ if __name__=="__main__":
 
     print(f"Running on {machine_name}")
 
-
-    cfg.use_box = False
-    main(cfg,name="resnet50-cub_no_box")
-
     cfg.use_box = True
-    cfg.alpha = 0.1
-    main(cfg,name="resnet50-cub_box_alpha_0.1")
+    cfg.alpha = 0.3
+    main(cfg,name="resnet50-cub_box_alpha_0.3")
 
     cfg.alpha = 0.5
     main(cfg,name="resnet50-cub_box_alpha_0.5")
