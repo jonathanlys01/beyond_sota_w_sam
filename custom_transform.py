@@ -3,10 +3,11 @@ import torchvision.transforms.functional as F
 from typing import Union
 
 import random
+import numpy as np
 
 def LocalizedRandomResizedCrop(
                 image, 
-                bbox,
+                xo, yo, Wo, Ho,
                 size: Union[int, tuple],
                 alpha: float = 0.5,
                 scale: tuple = (0.08, 1.0),
@@ -35,24 +36,17 @@ def LocalizedRandomResizedCrop(
     
         """
 
-
-        bbox = [bbox[0], 
-                bbox[1], 
-                bbox[0] + bbox[2], 
-                bbox[1] + bbox[3]]
-
-        bbox = list(bbox)
-
         effective_scale = random.uniform(*scale)
-        effective_ratio = random.uniform(*ratio)
+        log_ratio = tuple(np.log(r) for r in ratio)
+
+        effective_ratio = np.exp(random.uniform(*log_ratio))
 
         side = min(*image.size)
 
         crop_side = side * effective_scale
 
-        Wc, Hc = crop_side * effective_ratio, crop_side # c -> cropped
+        Wc, Hc = crop_side * effective_ratio, crop_side
 
-        Wo, Ho = bbox[2] - bbox[0], bbox[3] - bbox[1] # o -> object
 
         range_x = alpha * (Wc + Wo)/2
         range_y = alpha * (Hc + Ho)/2
@@ -60,14 +54,16 @@ def LocalizedRandomResizedCrop(
         effective_x = random.uniform(-range_x, range_x)
         effective_y = random.uniform(-range_y, range_y)
 
-        center_x = (bbox[0] + bbox[2])/2 + effective_x
-        center_y = (bbox[1] + bbox[3])/2 + effective_y
-
+        center_x = xo + Wo/2 + effective_x
+        center_y = yo + Ho/2 + effective_y
         crop_bbox = [
-            max(0, center_x - Wc/2),
+
             max(0, center_y - Hc/2),
-            min(image.size[0], center_x + Wc/2),
-            min(image.size[1], center_y + Hc/2),
+            max(0, center_x - Wc/2),
+            
+            Hc,
+            Wc,
+            
         ]
 
         crop_bbox = [int(x) for x in crop_bbox]

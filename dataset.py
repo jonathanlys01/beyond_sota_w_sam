@@ -72,7 +72,7 @@ class CUBDataset(Dataset):
 
         if self.use_box:
             box = self.boxes[id]
-            img = LocalizedRandomResizedCrop(img, box, size = self.size, patch_size = self.patch_size, alpha=self.alpha)
+            img = LocalizedRandomResizedCrop(img, *box, size = self.size, patch_size = self.patch_size, alpha=self.alpha)
             
         else:
             img = transforms.RandomResizedCrop((self.size,self.size))(img)

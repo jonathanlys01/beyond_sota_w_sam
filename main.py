@@ -129,17 +129,21 @@ def main(cfg, project = "beyond_sota", name = None):
                          name=name,)
 
     train_loader,val_loader = load_cub_datasets(cfg)
-            
-    #model = get_model(cfg.model.type,cfg.model.MLP_dim,cfg.model.n_classes)
 
-    model = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
-    
-    model.fc = nn.Linear(model.fc.in_features,cfg.model.n_classes)
-    
 
-    for m in model.fc.modules():
-        if isinstance(m, nn.Linear):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+    if cfg.model.type == "resnet50":
+        model = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    
+        model.fc = nn.Linear(model.fc.in_features,cfg.model.n_classes)
+        for m in model.fc.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+
+    elif cfg.model.type.startswith("dinov2"):
+        model = get_model(cfg.model.type,cfg.model.n_classes)
+    else:
+        # TODO: add other models
+        raise NotImplementedError 
 
 
     model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
@@ -168,19 +172,53 @@ def main(cfg, project = "beyond_sota", name = None):
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.opt.step_size, gamma=cfg.opt.gamma)
 
 
-
-    if cfg.wandb:
-        wandb.watch(model,log="all") # TO DO : add log_freq, log="gradients", log="parameters"
-
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.other.label_smoothing)
 
     train_model(model,ema, criterion,optimizer, scheduler ,train_loader, val_loader, cfg)
 
     final_acc, _ = val_model(ema,criterion,val_loader)
 
+    final_acc = final_acc.item()
+
     print(f"Final accuracy : {round(final_acc*100,3)}%")
 
-    while (ans:= input("Do you want to save the model? (y/n) ")).lower() not in ["y","n"]:
+    if cfg.save:
+        if name is None:
+            name = f"{cfg.model.type}_{cfg.num_epochs}ep_"
+        date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        os.mkdir("checkpoints", exist_ok=True)
+        torch.save(ema.state_dict(),f"{name}ep_ac{round(final_acc*100,3)}_{date}.pt")
+        print("Model saved!")
+    if cfg.wandb:
+        wandb.finish()
+    
+
+import socket
+if __name__=="__main__":
+
+    machine_name = socket.gethostname()
+
+    print(f"Running on {machine_name}")
+
+
+    cfg.use_box = False
+    main(cfg,name="resnet50-cub_no_box")
+
+    cfg.use_box = True
+    cfg.alpha = 0.1
+    main(cfg,name="resnet50-cub_box_alpha_0.1")
+
+    cfg.alpha = 0.5
+    main(cfg,name="resnet50-cub_box_alpha_0.5")
+
+    cfg.alpha = 1
+    main(cfg,name="resnet50-cub_box_alpha_1.0")
+
+
+
+
+
+    """"while (ans:= input("Do you want to save the model? (y/n) ")).lower() not in ["y","n"]:
         print("Invalid input, please try again!")
 
 
@@ -191,35 +229,4 @@ def main(cfg, project = "beyond_sota", name = None):
         print("Model saved!")
 
     elif ans.lower() == "n":
-        print("Model not saved! Continuing...")
-
-    if cfg.wandb:
-        wandb.finish()
-    
-
-
-if __name__=="__main__":
-
-    cfg.use_box = False
-    #main(cfg,name="resnet50-scratch-cub_base")
-
-    cfg.use_box = True
-    cfg.alpha = 1
-    main(cfg,name="resnet50-scratch-cub_base")
-
-
-    """while (ans:= input("Do you want to save the model? (y/n) ")).lower() not in ["y","n"]:
-        print("Invalid input, please try again!")
-
-
-    if ans.lower() == "y":
-        date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        os.mkdir("checkpoints")
-        torch.save(model.head.state_dict(),f"{cfg.model.type}_{cfg.num_epoch}ep_ac{round(final_acc*100,3)}_{date}.pt")
-        print("Model saved!")
-
-    elif ans.lower() == "n":
-        print("Model not saved!")"""
-
-            
-# https://pytorch.org/tutorials/beginner/basics/quickstart_tutorial.html
+        print("Model not saved! Continuing...")"""

@@ -11,7 +11,7 @@ load_refs = [
 
 repo_ref = "facebookresearch/dinov2"
 
-def get_model(type, MLP_dim, n_classes):
+def get_model(type, n_classes):
     """
     type: str -> model type: dinov2_vits14, dinov2_vitb14, dinov2_vitl14, dinov2_vitg14 (changes the model size)
     MLP_dim: int -> dimension of the MLP head
@@ -31,25 +31,13 @@ def get_model(type, MLP_dim, n_classes):
     model = torch.hub.load(repo_ref, type, pretrained=True)
     
 
-    model.head = nn.Sequential(
-        nn.Linear(model.norm.weight.shape[0], MLP_dim), 
-        nn.BatchNorm1d(MLP_dim),
-        nn.ReLU(),
-        nn.Linear(MLP_dim, n_classes),
-        nn.Softmax(dim=-1)
-    )
+    model.head = nn.Linear(model.norm.weight.shape[0], n_classes)
+        
 
     for param in model.parameters():
-        param.requires_grad = False
-
-    for param in model.head.parameters():
         param.requires_grad = True
 
-    for param in model.norm.parameters():
-        param.requires_grad = True
-
-    model.head.train()
-    model.norm.train()
+    model.train()
 
     return model
 
