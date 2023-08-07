@@ -169,6 +169,7 @@ def main(cfg, name = None):
 
 
     if cfg.model.resumed_model is not None:
+        print("Resuming training from checkpoint")
         ema.load_state_dict(torch.load(cfg.model.resumed_model))
 
         model.load_state_dict(ema.module.state_dict())
@@ -232,8 +233,6 @@ def main_sweep(config=None):
     wandb.finish()
 
 
-
-
 ############################################################################################################################################################################
 
 import socket
@@ -256,14 +255,14 @@ if __name__=="__main__":
 
     if cfg.sweeprun: # sweep
         sweep_config = {
-            'method': 'random', #grid, random
+            'method': 'grid', #grid, random
             'metric': {
                 'name': 'ema_acc',
                 'goal': 'maximize'
             },
             'parameters': {
                 'THR': {
-                    "values": [0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                    "values": [0, 0.001, 0.1, 0.2, 0.3, 0.4 ,0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
                 },
             }}
         sweep_id = wandb.sweep(sweep_config, project="beyond_sota_sweep")
@@ -272,9 +271,10 @@ if __name__=="__main__":
 
     else: # single run
         cfg.use_box = False
-        cfg.model.freeze_backbone = False
-        cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
-        name = "resnet50-ImageNetWeights_resume"
+        #cfg.model.freeze_backbone = False
+        #cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
+        #name = "resnet50-ImageNetWeights_resume"
+        name = None
 
         if cfg.wandb:
             run = wandb.init(project="beyond_sota",

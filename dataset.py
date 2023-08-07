@@ -13,7 +13,6 @@ import tqdm as tqdm
 from random import shuffle
 
 import torchvision
-from utils import RandomCutmix, RandomMixup
 
 class CUBDataset(Dataset):
 
@@ -35,7 +34,7 @@ class CUBDataset(Dataset):
             # using random crop when THR = 0
 
         if self.use_box:
-            print("Using localized crop")
+            print(f"Using localized crop with threshold {self.THR}")
         else:
             print("Using random crop")
 

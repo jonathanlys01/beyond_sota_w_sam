@@ -52,7 +52,7 @@ def LocalizedRandomResizedCrop(
 
         Wc, Hc = crop_side * effective_ratio * max(*ratio), crop_side * max(*ratio)
 
-        alpha = 1 - 2 * ((THR*Ho*Wo)/(Ho+Hc)/(Wo+Wc))**0.5
+        #alpha = 1 - 2 * ((THR*Ho*Wo)/(Ho+Hc)/(Wo+Wc))**0.5
 
         alpha = 1 - THR**0.5
 
