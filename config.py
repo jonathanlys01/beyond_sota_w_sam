@@ -2,21 +2,27 @@ from box import Box
 
 
 config = {
-     "save" : True,
+     
     "wandb" : True,
-    "use_box" : False,
+    "sweeprun" : True,
+     
+
+
+    "save" : False,
+    
+    "use_box" : True,
     "log_interval" : 1,
-    "num_epochs" : 100,
+    "num_epochs" : 300,
 
     "img_size" : 224, #224 ,
     "patch_size" : 14, # DINOv2
 
 
-    "num_workers" : 8, # 4 experiment on paralel
+    "num_workers" : 4, # 4 experiment on paralel
     "batch_size" : 64,
 
     "deterministic" : True,
-    "seed" : 0,
+    "seed" : 42,
 
     "model" : {
         "type" : "resnet50", #     "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14", "resnet50"
@@ -39,7 +45,6 @@ config = {
 
     },
 
-    "alpha" : 0.5, # distance between crop and object
     "THR": 0.5, # threshold for IoU
 
     "other": {
@@ -53,14 +58,17 @@ import socket
 
 name = socket.gethostname()
 
-if name.startswith('sl-tp-br') :
+if name.startswith('sl-tp-br') : # running on remote server
     config["dataset"] = {
         "img_dir" : "/nasbrain/datasets/CUB_200_2011/images/",
         "box_file" : "/nasbrain/datasets/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/nasbrain/datasets/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/nasbrain/datasets/CUB_200_2011/images.txt",
     }
-elif name.startswith("someone"):
+    config["batch_size"] = 32 # 32 for remote server (rip little 1060 gpu)
+    config["num_workers"] = 4 # 4
+
+elif name.startswith("someone"): # running on local machine
      config["dataset"] = {
         "img_dir" : "/mnt/data/CUB_200_2011/images/",
         "box_file" : "/mnt/data/CUB_200_2011/bounding_boxes.txt",

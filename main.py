@@ -32,7 +32,7 @@ def train_model(model : nn.Module ,
     
     model.train()
 
-    for iter in range(cfg.num_epochs):
+    for epoch in range(cfg.num_epochs):
 
         for i,(images,labels) in tqdm(enumerate(train_loader),total=len(train_loader)):
             images = images.to(device)
@@ -51,7 +51,7 @@ def train_model(model : nn.Module ,
         
         scheduler.step()
 
-        if (iter+1)%cfg.log_interval == 0:
+        if (epoch+1)%cfg.log_interval == 0:
             acc, loss_ = val_model(model,criterion,val_loader)
 
             ema_acc, ema_loss = val_model(ema,criterion,val_loader)
@@ -61,15 +61,13 @@ def train_model(model : nn.Module ,
             if cfg.wandb:
 
                 wandb.log({"loss":loss_,
-                            "acc":acc,})
-                
-                wandb.log({"ema_loss":ema_loss,
-                            "ema_acc":ema_acc,})
-                
-                wandb.log({"lr":lr})
-                
-            
-            print(f"Epoch [{iter+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
+                            "acc":acc,
+                            "ema_loss":ema_loss,
+                            "ema_acc":ema_acc,
+                            "lr":lr,
+                            "epoch":epoch+1,})
+
+            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
 
 def val_model(model : nn.Module,
               criterion,
@@ -125,12 +123,8 @@ def train_ncm(model : nn.Module,train_loader, device = torch.device("cuda" if to
 
 
     
-def main(cfg, project = "beyond_sota", name = None):
+def main(cfg, name = None):
 
-    if cfg.wandb:
-        run = wandb.init(project=project,
-                         config=cfg,
-                         name=name,)
 
     train_loader,val_loader = load_cub_datasets(cfg)
 
@@ -218,15 +212,29 @@ def main(cfg, project = "beyond_sota", name = None):
 
     if cfg.save:
         if name is None:
-            name = f"{cfg.model.type}_{cfg.num_epochs}ep_"
+            name = f"{cfg.model.type}_{cfg.num_epochs}ep_thr{cfg.THR}"
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         if os.path.isdir("models") is False:
             os.mkdir("models")
         torch.save(ema.state_dict(),f"models/{name}_ac{round(final_acc*100,3)}_{date}.pt")
         print("Model saved!")
-    if cfg.wandb:
-        wandb.finish()
+
     
+
+def main_sweep(config=None):
+
+    if config is not None:
+        print("Current config : ",config)
+        cfg.THR = config["THR"]
+
+    with wandb.init(config=cfg):     
+        main(cfg)
+    wandb.finish()
+
+
+
+
+############################################################################################################################################################################
 
 import socket
 import random
@@ -246,11 +254,38 @@ if __name__=="__main__":
     machine_name = socket.gethostname()
     print(f"Running on {machine_name}")
 
+    if cfg.sweeprun: # sweep
+        sweep_config = {
+            'method': 'random', #grid, random
+            'metric': {
+                'name': 'ema_acc',
+                'goal': 'maximize'
+            },
+            'parameters': {
+                'THR': {
+                    "values": [0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                },
+            }}
+        sweep_id = wandb.sweep(sweep_config, project="beyond_sota_sweep")
 
-    cfg.use_box = False
-    cfg.model.freeze_backbone = False
-    cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
-    main(cfg,name="resnet50-ImageNetWeights_resume")
+        wandb.agent(sweep_id, function=main_sweep, count=1)
+
+    else: # single run
+        cfg.use_box = False
+        cfg.model.freeze_backbone = False
+        cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
+        name = "resnet50-ImageNetWeights_resume"
+
+        if cfg.wandb:
+            run = wandb.init(project="beyond_sota",
+                            config=cfg,
+                            name=name,)
+            
+        main(cfg,name=name)
+
+        if cfg.wandb:
+            wandb.finish()
+
 
 
 
