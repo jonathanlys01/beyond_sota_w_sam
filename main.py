@@ -55,6 +55,8 @@ def train_model(model : nn.Module ,
             acc, loss_ = val_model(model,criterion,val_loader)
 
             ema_acc, ema_loss = val_model(ema,criterion,val_loader)
+
+            lr=scheduler.get_last_lr()[0]
             
             if cfg.wandb:
 
@@ -64,8 +66,10 @@ def train_model(model : nn.Module ,
                 wandb.log({"ema_loss":ema_loss,
                             "ema_acc":ema_acc,})
                 
+                wandb.log({"lr":lr})
+                
             
-            print(f"Epoch [{iter+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f}))")
+            print(f"Epoch [{iter+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
 
 def val_model(model : nn.Module,
               criterion,
@@ -139,23 +143,47 @@ def main(cfg, project = "beyond_sota", name = None):
             if isinstance(m, nn.Linear):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
 
+        if cfg.model.freeze_backbone:
+            for param in model.parameters():
+                param.requires_grad = False
+            for param in model.fc.parameters():
+                param.requires_grad = True
+        else:
+            for param in model.parameters():
+                param.requires_grad = True
+
     elif cfg.model.type.startswith("dinov2"):
         model = get_model(cfg.model.type,cfg.model.n_classes)
+        if cfg.model.freeze_backbone:
+            for param in model.parameters():
+                param.requires_grad = False
+            for param in model.head.parameters():
+                param.requires_grad = True
+        else:
+            for param in model.parameters():
+                param.requires_grad = True
     else:
         # TODO: add other models
         raise NotImplementedError 
-
-
-    model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
 
     ema = ExponentialMovingAverage(model, decay=cfg.other.ema_decay)
 
-    ema.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    ema.to(device)
 
 
+    if cfg.model.resumed_model is not None:
+        ema.load_state_dict(torch.load(cfg.model.resumed_model))
+
+        model.load_state_dict(ema.module.state_dict())
+
+
+    params = []
     for param in model.parameters():
-        param.requires_grad = True
-    params = model.parameters()
+        if param.requires_grad:
+            params.append(param)
     
 
     if cfg.opt.type == "adam":
@@ -174,43 +202,55 @@ def main(cfg, project = "beyond_sota", name = None):
 
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.other.label_smoothing)
 
+    start_acc, _ = val_model(ema,criterion,val_loader)
+
+    start_acc = start_acc.item()
+
+    print(f"Start accuracy (ema) : {round(start_acc*100,3)}%")
+
     train_model(model,ema, criterion,optimizer, scheduler ,train_loader, val_loader, cfg)
 
     final_acc, _ = val_model(ema,criterion,val_loader)
 
     final_acc = final_acc.item()
 
-    print(f"Final accuracy : {round(final_acc*100,3)}%")
+    print(f"Final accuracy (ema) : {round(final_acc*100,3)}%")
 
     if cfg.save:
         if name is None:
             name = f"{cfg.model.type}_{cfg.num_epochs}ep_"
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        os.mkdir("checkpoints", exist_ok=True)
-        torch.save(ema.state_dict(),f"{name}ep_ac{round(final_acc*100,3)}_{date}.pt")
+        if os.path.isdir("models") is False:
+            os.mkdir("models")
+        torch.save(ema.state_dict(),f"models/{name}_ac{round(final_acc*100,3)}_{date}.pt")
         print("Model saved!")
     if cfg.wandb:
         wandb.finish()
     
 
 import socket
+import random
+import numpy as np
+
 if __name__=="__main__":
 
-    machine_name = socket.gethostname()
+    
+    if cfg.deterministic: 
+        seed_ = cfg.seed
+        random.seed(seed_)
+        np.random.seed(seed_)
+        torch.manual_seed(seed_)
+        torch.cuda.manual_seed(seed_)
+        torch.backends.cudnn.deterministic = True
 
+    machine_name = socket.gethostname()
     print(f"Running on {machine_name}")
 
-    cfg.use_box = True
-    cfg.alpha = 0.3
-    main(cfg,name="resnet50-cub_box_alpha_0.3")
 
-    cfg.alpha = 0.5
-    main(cfg,name="resnet50-cub_box_alpha_0.5")
-
-    cfg.alpha = 1
-    main(cfg,name="resnet50-cub_box_alpha_1.0")
-
-
+    cfg.use_box = False
+    cfg.model.freeze_backbone = False
+    cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
+    main(cfg,name="resnet50-ImageNetWeights_resume")
 
 
 

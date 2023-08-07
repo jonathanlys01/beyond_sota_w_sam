@@ -1,14 +1,22 @@
-import torchvision.transforms.functional as F
-
-from typing import Union
-
+from torchvision.transforms import RandomResizedCrop
+import torchvision.transforms as transforms
 import random
 import numpy as np
 
+from config import cfg
+
+import cv2
+import os
+
+from tqdm import tqdm
+
+transform = RandomResizedCrop(224)
+
+print("imports done")
 def LocalizedRandomResizedCrop(
                 image, 
                 xo, yo, Wo, Ho,
-                size: Union[int, tuple],
+                size: tuple,
                 THR: float = 0.5,
                 scale: tuple = (0.08, 1.0),
                 ratio: tuple = (3. / 4., 4. / 3.),
@@ -36,10 +44,9 @@ def LocalizedRandomResizedCrop(
     
         """
 
-
         area_image = image.size[0] * image.size[1]
 
-        scale = (max(scale[0], THR*max(Wo,Ho)**2/area_image), scale[1])
+        scale = (max(0, THR*max(Wo,Ho)**2/area_image), scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
@@ -83,10 +90,83 @@ def LocalizedRandomResizedCrop(
 
         crop_bbox = [int(x) for x in crop_bbox]
 
-        return F.resized_crop(image, *crop_bbox, (size,size), antialias=True)
+        return crop_bbox
+
+def compute_iou(bbox,gt,):
+
+    """
+    Args:
+        y, x, h, w
+
+        warning: not the true iou, but intersection over area of the gt
+    """
+
+    y1, x1, h1, w1 = bbox
+    y2, x2, h2, w2 = gt
+
+
+    xA = max(x1, x2)
+    yA = max(y1, y2)
+    xB = min(x1+w1, x2+w2)
+    yB = min(y1+h1, y2+h2)
+
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+
+    boxAArea = w1 * h1
+    boxBArea = w2 * h2
+    eps = 1e-5
+
+    iou = interArea / (boxBArea + eps)
+
+    return iou
+
+
+with open(cfg.dataset.box_file) as f:
+    temp = f.readlines()
+
+    # format i x y w h
+
+    boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp}
+
+with open(cfg.dataset.img_file) as f:
+    temp = f.readlines()
+
+    # format i path
+
+    images_name = {int(line.split()[0]):line.split()[1] for line in temp}
 
 
 
 
 
+def get_miou(THR):
+    miou_localized = []
 
+    miou_random = []
+
+
+    size = 224
+
+    for name, box in tqdm(zip(images_name.values(),boxes.values()), total=len(images_name)):
+        img = cv2.imread(os.path.join(cfg.dataset.img_dir,name))
+        img = transforms.ToPILImage()(img)
+
+        localised_box = LocalizedRandomResizedCrop(img, *box, size = (size,size), THR = THR)
+        random_box = transform.get_params(img, transform.scale, transform.ratio)
+
+        
+        iou_random = compute_iou(random_box,box)
+        iou_localised = compute_iou(localised_box,box)
+
+
+        miou_random.append(iou_random)
+        miou_localized.append(iou_localised)
+
+    return miou_localized, miou_random
+     
+
+if __name__ == "__main__":
+    miou_localized, miou_random = get_miou(THR = 1)
+
+    print(np.mean(miou_localized))
+    print(np.mean(miou_random))

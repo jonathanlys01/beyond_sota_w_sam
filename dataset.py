@@ -17,7 +17,7 @@ from utils import RandomCutmix, RandomMixup
 
 class CUBDataset(Dataset):
 
-    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms, use_box = False, patch_size = 14, size = 224, alpha = 0.3) -> None:
+    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms, use_box = False, patch_size = 14, size = 224, THR = 0.7) -> None:
         super().__init__()
 
         self.path_to_img = path_to_img
@@ -28,7 +28,7 @@ class CUBDataset(Dataset):
         self.use_box = use_box
         self.patch_size = patch_size
         self.size = size
-        self.alpha = alpha
+        self.THR = THR
 
         if self.use_box:
             print("Using localized crop")
@@ -72,7 +72,7 @@ class CUBDataset(Dataset):
 
         if self.use_box:
             box = self.boxes[id]
-            img = LocalizedRandomResizedCrop(img, *box, size = self.size, patch_size = self.patch_size, alpha=self.alpha)
+            img = LocalizedRandomResizedCrop(img, *box, size = self.size, patch_size = self.patch_size, THR=self.THR)
             
         else:
             img = transforms.RandomResizedCrop((self.size,self.size))(img)
@@ -86,7 +86,8 @@ class CUBDataset(Dataset):
         return img, label # img is a tensor, label is an int
  
 
-def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
+def load_cub_datasets(cfg, ratio = 0.7):
+
 
     img_names = {}
 
@@ -117,7 +118,7 @@ def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
                           use_box = cfg.use_box,
                           size = cfg.img_size,
                           patch_size = cfg.patch_size,
-                          alpha = alpha
+                          THR = cfg.THR
                             )
     
     val = CUBDataset(path_to_img=cfg.dataset.img_dir,
@@ -129,9 +130,11 @@ def load_cub_datasets(cfg, ratio = 0.7, alpha = 0.3):
                         use_box = False,
                         size = cfg.img_size,
                         patch_size = cfg.patch_size,
-                        alpha = alpha
+                        THR = cfg.THR
                         )
-    
+    if cfg.deterministic:
+        seed = cfg.seed
+        torch.manual_seed(seed)
 
     train_loader = DataLoader(train,
                               batch_size=cfg.batch_size,

@@ -2,22 +2,29 @@ from box import Box
 
 
 config = {
+     "save" : True,
     "wandb" : True,
     "use_box" : False,
     "log_interval" : 1,
-    "num_epochs" : 200,
+    "num_epochs" : 100,
 
     "img_size" : 224, #224 ,
     "patch_size" : 14, # DINOv2
 
 
-    "num_workers" : 4, # 4 experiment on paralel
-    "batch_size" : 32,
+    "num_workers" : 8, # 4 experiment on paralel
+    "batch_size" : 64,
+
+    "deterministic" : True,
+    "seed" : 0,
 
     "model" : {
         "type" : "resnet50", #     "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14", "resnet50"
         "n_classes" : 200,
-        "ema_step" : 32
+        "ema_step" : 32,
+        "freeze_backbone" : False,
+
+        "resumed_model" : None, # "models/resnet50_100ep_ac85.0_2021-05-31_16:11:48.pt
     },
 
     "opt": {
@@ -33,10 +40,11 @@ config = {
     },
 
     "alpha" : 0.5, # distance between crop and object
+    "THR": 0.5, # threshold for IoU
 
     "other": {
         "label_smoothing": 0.1,
-        "ema_decay": 0.999,
+        "ema_decay": 0.99,
     },
 
 }
@@ -51,14 +59,14 @@ if name.startswith('sl-tp-br') :
         "box_file" : "/nasbrain/datasets/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/nasbrain/datasets/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/nasbrain/datasets/CUB_200_2011/images.txt",
-    },
+    }
 elif name.startswith("someone"):
      config["dataset"] = {
         "img_dir" : "/mnt/data/CUB_200_2011/images/",
         "box_file" : "/mnt/data/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/mnt/data/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/mnt/data/CUB_200_2011/images.txt",
-    },
+    }
 else:
      raise Exception("What is your machine bro?")
 
