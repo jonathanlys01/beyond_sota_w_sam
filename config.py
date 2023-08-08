@@ -5,6 +5,13 @@ config = {
      
     "wandb" : True,
     "sweeprun" : True,
+
+    "sweep" : {
+        "resume" : True,
+        "count" : 2,
+        "id" : "5ei0c0b9",
+        
+    },
      
 
 
@@ -12,7 +19,7 @@ config = {
     
     "use_box" : True,
     "log_interval" : 1,
-    "num_epochs" : 250,
+    "num_epochs" : 200,
 
     "img_size" : 224, #224 ,
     "patch_size" : 14, # DINOv2
@@ -45,7 +52,7 @@ config = {
 
     },
 
-    "THR": 0.5, # threshold for IoU, will change if a sweep is running
+    #"THR": 0.5, # threshold for IoU, will change if a sweep is running
 
     "other": {
         "label_smoothing": 0.1,
@@ -57,6 +64,10 @@ config = {
 import socket
 
 name = socket.gethostname()
+
+config['A_machine'] = name
+
+# user (machine) specific config
 
 if name.startswith('sl-tp-br') : # running on remote server
     config["dataset"] = {
@@ -78,6 +89,6 @@ elif name.startswith("someone"): # running on local machine
     }
     config["num_workers"] = 8
 else:
-     raise Exception("What is your machine bro?")
+    raise Exception("Unrecognized machine")
 
 cfg = Box(config)

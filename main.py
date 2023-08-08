@@ -2,8 +2,6 @@ import torch
 import torchvision
 import wandb
 
-
-
 from dataset import load_cub_datasets
 
 from config import cfg
@@ -51,14 +49,26 @@ def train_model(model : nn.Module ,
         
         scheduler.step()
 
+        L_ema_acc = []
+
         if (epoch+1)%cfg.log_interval == 0:
             acc, loss_ = val_model(model,criterion,val_loader)
 
             ema_acc, ema_loss = val_model(ema,criterion,val_loader)
+            L_ema_acc.append(ema_acc)
 
             lr=scheduler.get_last_lr()[0]
             
             if cfg.wandb:
+
+            
+                if len(L_ema_acc) > 10:
+                    running_mean = sum(L_ema_acc[-10:])/10
+
+                    wandb.log({"running_mean":running_mean,
+                                "epoch":epoch+1,})
+                
+
 
                 wandb.log({"loss":loss_,
                             "acc":acc,
@@ -67,7 +77,7 @@ def train_model(model : nn.Module ,
                             "lr":lr,
                             "epoch":epoch+1,})
 
-            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
+            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} (ema : {ema_loss:.4f}) | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
 
 def val_model(model : nn.Module,
               criterion,
@@ -222,13 +232,19 @@ def main(cfg, name = None):
 
     
 
-def main_sweep(config=None):
+def main_sweep():
 
-    if config is not None:
+    with wandb.init(project="beyond_sota_sweep",entity="jonathanlystahiti"):
+        config = wandb.config
         print("Current config : ",config)
-        cfg.THR = config["THR"]
-
-    with wandb.init(config=cfg):     
+        thr = config["THR"]
+        try:
+            del cfg.THR
+        except:
+            pass
+        wandb.config.update(cfg)
+        cfg.THR = thr
+        print(cfg.THR)
         main(cfg)
     wandb.finish()
 
@@ -265,9 +281,16 @@ if __name__=="__main__":
                     "values": [0, 0.001, 0.1, 0.2, 0.3, 0.4 ,0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
                 },
             }}
-        sweep_id = wandb.sweep(sweep_config, project="beyond_sota_sweep")
+        if cfg.sweep.resume:
+            sweep_id = cfg.sweep.id
+        else:
+            sweep_id = wandb.sweep(sweep_config, project="beyond_sota_sweep")
 
-        wandb.agent(sweep_id, function=main_sweep, count=1)
+        print("Sweep id : ",sweep_id)
+        print("Lauching sweep")
+        wandb.agent(sweep_id, function=main_sweep, count=cfg.sweep.count, 
+                    entity="jonathanlystahiti", 
+                    project="beyond_sota_sweep")
 
     else: # single run
         cfg.use_box = False

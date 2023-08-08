@@ -10,8 +10,7 @@ from custom_transform import LocalizedRandomResizedCrop
 from config import cfg
 import tqdm as tqdm
 
-from random import shuffle
-
+import random as rd
 import torchvision
 
 class CUBDataset(Dataset):
@@ -102,7 +101,9 @@ def load_cub_datasets(cfg, ratio = 0.7):
 
     list_indexes = list(img_names.keys())
 
-    shuffle(list_indexes)
+    if cfg.deterministic:
+        rd.seed(cfg.seed)
+    rd.shuffle(list_indexes)
 
     train_indexes = list_indexes[:int(len(list_indexes)*ratio)]
     val_indexes = list_indexes[int(len(list_indexes)*ratio):]
@@ -133,7 +134,7 @@ def load_cub_datasets(cfg, ratio = 0.7):
                         use_box = False,
                         size = cfg.img_size,
                         patch_size = cfg.patch_size,
-                        THR = cfg.THR
+                        THR = 0
                         )
     if cfg.deterministic:
         seed = cfg.seed
