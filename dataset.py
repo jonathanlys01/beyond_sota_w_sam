@@ -115,9 +115,9 @@ def load_cub_datasets(cfg, ratio = 0.7):
                        box_file=cfg.dataset.box_file,
                           transforms=transforms.Compose([
                                 transforms.RandomHorizontalFlip(),
-                                transforms.TrivialAugmentWide(),
+                                #transforms.TrivialAugmentWide(),
                                 transforms.ToTensor(),
-                                transforms.RandomErasing(0.1),
+                                #transforms.RandomErasing(0.1),
                                 ]),
                           use_box = cfg.use_box,
                           size = cfg.img_size,

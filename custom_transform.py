@@ -1,5 +1,7 @@
 import torchvision.transforms.functional as F
 
+from PIL import Image
+
 from typing import Union
 
 import random
@@ -39,7 +41,7 @@ def LocalizedRandomResizedCrop(
 
         area_image = image.size[0] * image.size[1]
 
-        scale = (max(scale[0], THR*max(Wo,Ho)**2/area_image), scale[1])
+        scale = (max(scale[0], THR*Wo*Ho/area_image), scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
@@ -50,9 +52,12 @@ def LocalizedRandomResizedCrop(
 
         crop_side = side * effective_scale**0.5
 
-        Wc, Hc = crop_side * effective_ratio * max(*ratio), crop_side * max(*ratio)
-
-        #alpha = 1 - 2 * ((THR*Ho*Wo)/(Ho+Hc)/(Wo+Wc))**0.5
+        if effective_ratio > 1:
+            Wc = effective_ratio * crop_side
+            Hc = crop_side
+        else:
+            Wc = crop_side
+            Hc = crop_side / effective_ratio
 
         alpha = 1 - THR**0.5
 
@@ -74,19 +79,28 @@ def LocalizedRandomResizedCrop(
             
         ]
 
-        crop_bbox = [
-                crop_bbox[0],
-                crop_bbox[1],
-                min(abs(crop_bbox[0]-image.size[1]), crop_bbox[2]),
-                min(abs(crop_bbox[1]-image.size[0]), crop_bbox[3]),
-        ]
+        if crop_bbox[0] + crop_bbox[2] > image.size[1]:
+            crop_bbox[2] = image.size[1] - crop_bbox[0]
+        if crop_bbox[1] + crop_bbox[3] > image.size[0]:
+            crop_bbox[3] = image.size[0] - crop_bbox[1]
 
         crop_bbox = [int(x) for x in crop_bbox]
 
         return F.resized_crop(image, *crop_bbox, (size,size), antialias=True)
 
 
+def LocalizedRandomErase(image: Image.Image,
+                         xo: int, yo: int, Wo: int, Ho: int,
+                         THR: float = 0.5,
+                         ):
+    """
+    Args : 
 
+        image (PIL Image): Image to be erased.
+        bbox (tuple): Bounding box coordinates (x, y, w, h)
+        THR (float): threshold of the ratio of the erased area to the bbox area
+    """
+    pass
 
 
 

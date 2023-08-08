@@ -77,7 +77,7 @@ def train_model(model : nn.Module ,
                             "lr":lr,
                             "epoch":epoch+1,})
 
-            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} (ema : {ema_loss:.4f}) | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.4f}")
+            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} (ema : {ema_loss:.4f}) | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.04g}")
 
 def val_model(model : nn.Module,
               criterion,
@@ -294,10 +294,7 @@ if __name__=="__main__":
 
     else: # single run
         cfg.use_box = False
-        #cfg.model.freeze_backbone = False
-        #cfg.model.resumed_model = 'models/resnet50-ImageNetWeights_ac57.936_2023-08-07_12:40:16.pt'
-        #name = "resnet50-ImageNetWeights_resume"
-        name = None
+        name = "r50-baseline-500_ep"
 
         if cfg.wandb:
             run = wandb.init(project="beyond_sota",
@@ -308,6 +305,24 @@ if __name__=="__main__":
 
         if cfg.wandb:
             wandb.finish()
+
+        ############################################################################################################################################################################
+
+        cfg.use_box = True
+        cfg.THR = 1.0
+        name = "r50-box_1.0-500_ep"
+
+        if cfg.wandb:
+            run = wandb.init(project="beyond_sota",
+                            config=cfg,
+                            name=name,)
+            
+        main(cfg,name=name)
+
+        if cfg.wandb:
+            wandb.finish()
+
+        
 
 
 

@@ -1,3 +1,4 @@
+import PIL
 from torchvision.transforms import RandomResizedCrop
 import torchvision.transforms as transforms
 import random
@@ -12,7 +13,7 @@ from tqdm import tqdm
 
 transform = RandomResizedCrop(224)
 
-print("imports done")
+
 def LocalizedRandomResizedCrop(
                 image, 
                 xo, yo, Wo, Ho,
@@ -20,7 +21,6 @@ def LocalizedRandomResizedCrop(
                 THR: float = 0.5,
                 scale: tuple = (0.08, 1.0),
                 ratio: tuple = (3. / 4., 4. / 3.),
-                patch_size: int = 14, # for ViT
                 ):
     
         """
@@ -44,22 +44,31 @@ def LocalizedRandomResizedCrop(
     
         """
 
+
         area_image = image.size[0] * image.size[1]
 
-        scale = (max(0, THR*max(Wo,Ho)**2/area_image), scale[1])
+        scale = (max(scale[0], (THR*Wo*Ho)/area_image), scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
 
         effective_ratio = np.exp(random.uniform(*log_ratio))
 
-        side = max(*image.size)
+        side = (image.size[0]*image.size[1])**0.5  
 
         crop_side = side * effective_scale**0.5
 
-        Wc, Hc = crop_side * effective_ratio * max(*ratio), crop_side * max(*ratio)
+        if effective_ratio > 1:
+            Wc = effective_ratio * crop_side
+            Hc = crop_side
+        else:
+            Wc = crop_side
+            Hc = crop_side / effective_ratio
 
-        alpha = 1 - 2 * ((THR*Ho*Wo)/(Ho+Hc)/(Wo+Wc))**0.5
+
+
+        Hc = min(Hc, float(image.size[1]))
+        Wc = min(Wc, float(image.size[0]))
 
         alpha = 1 - THR**0.5
 
@@ -81,16 +90,24 @@ def LocalizedRandomResizedCrop(
             
         ]
 
-        crop_bbox = [
-                crop_bbox[0],
-                crop_bbox[1],
-                min(abs(crop_bbox[0]-image.size[1]), crop_bbox[2]),
-                min(abs(crop_bbox[1]-image.size[0]), crop_bbox[3]),
-        ]
+        """if crop_bbox[0] + crop_bbox[2] > image.size[1]:
+            crop_bbox[2] = image.size[1] - crop_bbox[0]
+
+        if crop_bbox[1] + crop_bbox[3] > image.size[0]:
+            crop_bbox[3] = image.size[0] - crop_bbox[1]"""
+
 
         crop_bbox = [int(x) for x in crop_bbox]
 
+        """assert crop_bbox[0] >= 0 
+        assert crop_bbox[1] >= 0 
+        assert crop_bbox[0] + crop_bbox[2] <= image.size[1] 
+        assert crop_bbox[1] + crop_bbox[3] <= image.size[0]"""
+
+        
         return crop_bbox
+        
+
 
 def compute_iou(bbox,gt,):
 
@@ -146,10 +163,16 @@ def get_miou(THR):
 
 
     size = 224
+    total = len(images_name)
+    assert list(boxes.keys()) == list(images_name.keys())
 
-    for name, box in tqdm(zip(images_name.values(),boxes.values()), total=len(images_name)):
-        img = cv2.imread(os.path.join(cfg.dataset.img_dir,name))
-        img = transforms.ToPILImage()(img)
+    for i in range(total):
+        name = images_name[i+1]
+        box = boxes[i+1]
+
+        img = PIL.Image.open(os.path.join(cfg.dataset.img_dir,name))
+
+        #img = transforms.ToPILImage()(img)
 
         localised_box = LocalizedRandomResizedCrop(img, *box, size = (size,size), THR = THR)
         random_box = transform.get_params(img, transform.scale, transform.ratio)
@@ -162,11 +185,11 @@ def get_miou(THR):
         miou_random.append(iou_random)
         miou_localized.append(iou_localised)
 
+        print(f"{np.mean(miou_localized):.3f} | {np.mean(miou_random):.3f} | {str(i).zfill(len(str(total)))}/{total}", end="\r")
+
     return miou_localized, miou_random
      
 
 if __name__ == "__main__":
     miou_localized, miou_random = get_miou(THR = 1)
-
-    print(np.mean(miou_localized))
-    print(np.mean(miou_random))
+    print()

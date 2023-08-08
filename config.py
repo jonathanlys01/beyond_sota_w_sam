@@ -4,7 +4,7 @@ from box import Box
 config = {
      
     "wandb" : True,
-    "sweeprun" : True,
+    "sweeprun" : False,
 
     "sweep" : {
         "resume" : True,
@@ -13,20 +13,18 @@ config = {
         
     },
      
-
-
-    "save" : False,
+    "save" : True,
     
     "use_box" : True,
     "log_interval" : 1,
-    "num_epochs" : 200,
+    "num_epochs" : 500,
 
     "img_size" : 224, #224 ,
     "patch_size" : 14, # DINOv2
 
 
-    "num_workers" : 4, # 4 experiment on paralel
-    "batch_size" : 64,
+    "num_workers" : 8, # 4 experiment on paralel
+    "batch_size" : 80,
 
     "deterministic" : True,
     "seed" : 42,
@@ -42,21 +40,22 @@ config = {
 
     "opt": {
         "type" : "sgd", # "sgd", "adam", "adamw"
-        "lr" : 1e-5, # 1e-3 from scratch, 1e-3 * 0.5**6 when resuming from 300ep model (approx 1e-5)
+        "lr" : 1e-3, # 1e-3 from scratch, 1e-3 * 0.5**6 when resuming from 300ep model (approx 1e-5) 
         "momentum" : 0.9,
         "weight_decay" : 1e-4,
 
         "scheduler" : "step", # "cosine", "step", 
-        "step_size" : 100,
-        "gamma" : 0.5,
+        "step_size" : 10,
+        "target_lr" : 5e-5,
+        "gamma" : 1, # true gamma will be automatically calculated
 
     },
 
-    #"THR": 0.5, # threshold for IoU, will change if a sweep is running
+    "THR": 0.5, # threshold for IoU, will change if a sweep is running
 
     "other": {
         "label_smoothing": 0.1,
-        "ema_decay": 0.999, # 0.999 for 300ep, 0.99 for 100ep
+        "ema_decay": 0.995, # 0.999 for 300ep, 0.99 for 100ep
     },
 
 }
@@ -92,3 +91,11 @@ else:
     raise Exception("Unrecognized machine")
 
 cfg = Box(config)
+
+import numpy as np
+
+target_lr = cfg.opt.target_lr
+
+start_lr = cfg.opt.lr
+
+cfg.opt.gamma = np.exp(np.log(target_lr / start_lr) / (cfg.num_epochs / cfg.opt.step_size))
