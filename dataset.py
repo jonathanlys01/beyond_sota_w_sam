@@ -28,9 +28,9 @@ class CUBDataset(Dataset):
         self.size = size
         self.THR = THR
 
-        if THR == 0:
+        if THR <= 0:
             self.use_box = False
-            # using random crop when THR = 0
+            # using random crop when THR <= 0
 
         if self.use_box:
             print(f"Using localized crop with threshold {self.THR}")

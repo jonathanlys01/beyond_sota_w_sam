@@ -41,14 +41,17 @@ def LocalizedRandomResizedCrop(
 
         area_image = image.size[0] * image.size[1]
 
-        scale = (max(scale[0], THR*Wo*Ho/area_image), scale[1])
+        Ao = max(Wo, Ho)**2
+
+        scale = (max(scale[0], (THR*Ao)/area_image),
+                 scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
 
         effective_ratio = np.exp(random.uniform(*log_ratio))
 
-        side = max(*image.size)
+        side = area_image**0.5  
 
         crop_side = side * effective_scale**0.5
 
@@ -58,6 +61,10 @@ def LocalizedRandomResizedCrop(
         else:
             Wc = crop_side
             Hc = crop_side / effective_ratio
+
+        # prevent overflow
+        Hc = min(Hc, float(image.size[1]))
+        Wc = min(Wc, float(image.size[0]))
 
         alpha = 1 - THR**0.5
 
@@ -100,7 +107,30 @@ def LocalizedRandomErase(image: Image.Image,
         bbox (tuple): Bounding box coordinates (x, y, w, h)
         THR (float): threshold of the ratio of the erased area to the bbox area
     """
-    pass
+    H_i = image.size[1]
+    W_i = image.size[0]
 
+    d_up = H_i - (yo + Ho)
+    d_down = yo
+
+    d_left = xo
+    d_right = W_i - (xo + Wo)
+
+    d_v = d_up + d_down
+    d_h = d_left + d_right
+
+    u_v = random.uniform(0, 1)
+    u_h = random.uniform(0, 1)
+
+    if u_v > d_up / d_v:
+        print('up')
+
+    else:
+        print('down')
+    
+    if u_h > d_left / d_h:
+        print('left')
+    else:
+        print('right')
 
 

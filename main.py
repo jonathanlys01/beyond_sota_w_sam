@@ -293,8 +293,9 @@ if __name__=="__main__":
                     project="beyond_sota_sweep")
 
     else: # single run
-        cfg.use_box = False
-        name = "r50-baseline-500_ep"
+        cfg.use_box = True
+        cfg.THR = 0.0955
+        name = "r50-match_maIOU_500ep"
 
         if cfg.wandb:
             run = wandb.init(project="beyond_sota",
@@ -307,20 +308,6 @@ if __name__=="__main__":
             wandb.finish()
 
         ############################################################################################################################################################################
-
-        cfg.use_box = True
-        cfg.THR = 1.0
-        name = "r50-box_1.0-500_ep"
-
-        if cfg.wandb:
-            run = wandb.init(project="beyond_sota",
-                            config=cfg,
-                            name=name,)
-            
-        main(cfg,name=name)
-
-        if cfg.wandb:
-            wandb.finish()
 
         
 

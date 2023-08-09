@@ -18,7 +18,7 @@ def LocalizedRandomResizedCrop(
                 image, 
                 xo, yo, Wo, Ho,
                 size: tuple,
-                THR: float = 0.5,
+                THR: float,
                 scale: tuple = (0.08, 1.0),
                 ratio: tuple = (3. / 4., 4. / 3.),
                 ):
@@ -47,16 +47,21 @@ def LocalizedRandomResizedCrop(
 
         area_image = image.size[0] * image.size[1]
 
-        scale = (max(scale[0], (THR*Wo*Ho)/area_image), scale[1])
+        Ao = max(Wo, Ho)**2
+
+        scale = (max(scale[0], (THR*Ao)/area_image),
+                 scale[1])
         
         effective_scale = random.uniform(*scale)
+
         log_ratio = tuple(np.log(r) for r in ratio)
 
         effective_ratio = np.exp(random.uniform(*log_ratio))
 
-        side = (image.size[0]*image.size[1])**0.5  
+        side = area_image**0.5  
 
         crop_side = side * effective_scale**0.5
+
 
         if effective_ratio > 1:
             Wc = effective_ratio * crop_side
@@ -90,26 +95,21 @@ def LocalizedRandomResizedCrop(
             
         ]
 
-        """if crop_bbox[0] + crop_bbox[2] > image.size[1]:
+        if crop_bbox[0] + crop_bbox[2] > image.size[1]:
             crop_bbox[2] = image.size[1] - crop_bbox[0]
 
         if crop_bbox[1] + crop_bbox[3] > image.size[0]:
-            crop_bbox[3] = image.size[0] - crop_bbox[1]"""
+            crop_bbox[3] = image.size[0] - crop_bbox[1]
 
 
         crop_bbox = [int(x) for x in crop_bbox]
 
-        """assert crop_bbox[0] >= 0 
-        assert crop_bbox[1] >= 0 
-        assert crop_bbox[0] + crop_bbox[2] <= image.size[1] 
-        assert crop_bbox[1] + crop_bbox[3] <= image.size[0]"""
 
-        
         return crop_bbox
         
 
 
-def compute_iou(bbox,gt,):
+def compute_niou(bbox,gt,):
 
     """
     Args:
@@ -118,24 +118,26 @@ def compute_iou(bbox,gt,):
         warning: not the true iou, but intersection over area of the gt
     """
 
-    y1, x1, h1, w1 = bbox
-    y2, x2, h2, w2 = gt
+    x1, y1, w1, h1 = bbox
+    x3, y3, w3, h3 = gt
 
+    x2 = x1 + w1
+    y2 = y1 + h1
 
-    xA = max(x1, x2)
-    yA = max(y1, y2)
-    xB = min(x1+w1, x2+w2)
-    yB = min(y1+h1, y2+h2)
+    x4 = x3 + w3
+    y4 = y3 + h3
 
-    interArea = max(0, xB - xA) * max(0, yB - yA)
+    #  x1,y1,x2,y2,x3,y3,x4,y4
 
-    boxAArea = w1 * h1
-    boxBArea = w2 * h2
-    eps = 1e-5
+    inter_width = min(x2, x4) - max(x1, x3)
+    inter_height = min(y2, y4) - max(y1, y3)
 
-    iou = interArea / (boxBArea + eps)
+    if inter_width <= 0 or inter_height <= 0:
+        return 0
+    
+    areaIntersection = inter_width * inter_height
 
-    return iou
+    return areaIntersection / (w3 * h3)
 
 
 with open(cfg.dataset.box_file) as f:
@@ -174,12 +176,15 @@ def get_miou(THR):
 
         #img = transforms.ToPILImage()(img)
 
+
+
         localised_box = LocalizedRandomResizedCrop(img, *box, size = (size,size), THR = THR)
         random_box = transform.get_params(img, transform.scale, transform.ratio)
 
-        
-        iou_random = compute_iou(random_box,box)
-        iou_localised = compute_iou(localised_box,box)
+        box = [box[1], box[0], box[3], box[2]] # x,y,w,h -> y,x,h,w
+
+        iou_random = compute_niou(random_box,box)
+        iou_localised = compute_niou(localised_box,box)
 
 
         miou_random.append(iou_random)
@@ -191,5 +196,7 @@ def get_miou(THR):
      
 
 if __name__ == "__main__":
-    miou_localized, miou_random = get_miou(THR = 1)
+    miou_localized, miou_random = get_miou(THR = 0.0955)
     print()
+    print(f"miou_localized : {np.mean(miou_localized):.3f}")
+    print(f"miou_random : {np.mean(miou_random):.3f}")
