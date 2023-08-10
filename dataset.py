@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import torch
 import os
-import cv2
+
 from torchvision import transforms
 from custom_transform import LocalizedRandomResizedCrop
 
@@ -13,9 +13,23 @@ import tqdm as tqdm
 import random as rd
 import torchvision
 
+from PIL import Image
+
 class CUBDataset(Dataset):
 
-    def __init__(self, path_to_img, img_names, indexes, label_file, box_file, transforms, use_box = False, patch_size = 14, size = 224, THR = 0.7) -> None:
+    def __init__(self, 
+                 path_to_img, 
+                 img_names, 
+                 indexes, 
+                 label_file, 
+                 box_file, 
+                 transforms, 
+                 use_box = False, 
+                 patch_size = 14, 
+                 size = 224, 
+                 THR = 0.7,
+                 preprocessing_transforms = transforms.Compose([])
+                 ) -> None:
         super().__init__()
 
         self.path_to_img = path_to_img
@@ -27,10 +41,11 @@ class CUBDataset(Dataset):
         self.patch_size = patch_size
         self.size = size
         self.THR = THR
+        self.preprocessing_transforms = preprocessing_transforms
 
-        if THR <= 0:
+        if THR < 0:
             self.use_box = False
-            # using random crop when THR <= 0
+            # using random crop when THR < 0, THR can be 0
 
         if self.use_box:
             print(f"Using localized crop with threshold {self.THR}")
@@ -67,10 +82,9 @@ class CUBDataset(Dataset):
         label = self.labels[id]
 
 
-        img = cv2.imread(img_name)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # to PIL
-        img = transforms.ToPILImage()(img)
+        img = Image.open(img_name).convert("RGB")
+
+        img = self.preprocessing_transforms(img) # mostly color augmentation, done before crop
 
         if self.use_box:
             box = self.boxes[id]
@@ -81,18 +95,20 @@ class CUBDataset(Dataset):
 
         img = self.transforms(img).float()
 
+        # transforms contains ToTensor() which convert the image to tensor (and normalize it, without the mean and std)
+
         img = self.normalize(img)
 
         label = torch.tensor(label).long()
 
         return img, label # img is a tensor, label is an int
  
-from custom_transform import non_geo_transforms
+from custom_transform import get_non_geo_transforms
 
 def load_cub_datasets(cfg, ratio = 0.7):
 
     if cfg.augment:
-        iou_ok_transorms = transforms.RandomChoice(non_geo_transforms)
+        iou_ok_transorms = transforms.RandomChoice(get_non_geo_transforms(p=cfg.augment_p))
     else:
         iou_ok_transorms = transforms.Compose([])
 
@@ -116,30 +132,30 @@ def load_cub_datasets(cfg, ratio = 0.7):
 
     train = CUBDataset(path_to_img=cfg.dataset.img_dir,
                         img_names = {i:img_names[i] for i in train_indexes},
-                       indexes = train_indexes,
-                       label_file=cfg.dataset.label_file,
-                       box_file=cfg.dataset.box_file,
-                          transforms=transforms.Compose([
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(),
-                                iou_ok_transorms,
-                                ]),
-                          use_box = cfg.use_box,
-                          size = cfg.img_size,
-                          patch_size = cfg.patch_size,
-                          THR = cfg.THR
-                            )
-    
-    val = CUBDataset(path_to_img=cfg.dataset.img_dir,
-                     img_names = {i:img_names[i] for i in val_indexes},
-                        indexes = val_indexes,
+                        indexes = train_indexes,
                         label_file=cfg.dataset.label_file,
                         box_file=cfg.dataset.box_file,
-                        transforms=transforms.ToTensor(),
-                        use_box = False,
+                        transforms=transforms.Compose([
+                            transforms.RandomHorizontalFlip(),
+                            transforms.ToTensor(),
+                            ]),
+                        use_box = cfg.use_box,
                         size = cfg.img_size,
                         patch_size = cfg.patch_size,
-                        THR = 0
+                        THR = cfg.THR,
+                        preprocessing_transforms = iou_ok_transorms
+                        )
+    
+    val = CUBDataset(path_to_img=cfg.dataset.img_dir,
+                    img_names = {i:img_names[i] for i in val_indexes},
+                    indexes = val_indexes,
+                    label_file=cfg.dataset.label_file,
+                    box_file=cfg.dataset.box_file,
+                    transforms=transforms.ToTensor(),
+                    use_box = False,
+                    size = cfg.img_size,
+                    patch_size = cfg.patch_size,
+                    THR = 0
                         )
     if cfg.deterministic:
         seed = cfg.seed

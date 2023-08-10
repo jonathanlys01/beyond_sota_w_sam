@@ -136,22 +136,25 @@ def LocalizedRandomErase(image: Image.Image,
 
 import torchvision.transforms as T
 
-# lists of color/other related transformations (no geometric transformations)
+# list of color/other related transformations (no geometric transformations)
 # A transformation will be randomly selected from the list (some transformations are repeated with different parameters)
+# TODO: take transformations from trivial augmentation paper
 
 
-non_geo_transforms = [
-    T.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1), # randomly change brightness, contrast, saturation and hue
-    T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1), 
-    T.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)), # blur the image with a gaussian kernel with a random sigma
-    T.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0)),
-    T.ElasticTransform(alpha=1, sigma=50, alpha_affine=50), # apply an elastic transformation to the image
-    T.ElasticTransform(alpha=1, sigma=25, alpha_affine=25),
-    T.RandomPosterize(bits=4, p=1.0), # posterize the image
-    T.RandomPosterize(bits=2, p=1.0),
-    T.RandomSolarize(threshold=128, p = 1.0), # solarize the image
-    T.RandomSolarize(threshold=192, p=1.0),
-    T.RandomEqualize(p=1.0), # equalize the image
-    T.RandomAutocontrast(p=1.0), #  autocontrast the image
-    T.RandomHorizontalFlip(p=1.0), # flip the image horizontally
+def get_non_geo_transforms(p: float = 0.5):
+        non_geo_transforms = [
+        # randomly change brightness, contrast, saturation and hue
+        T.ColorJitter(brightness=p*0.5, contrast=p*0.5, saturation=p*0.5, hue=p*0.1),
+        # Posterize the image randomly with 4, 3, 2 bits
+        T.RandomPosterize(bits=4, p=p), 
+        T.RandomPosterize(bits=3, p=p),
+        T.RandomPosterize(bits=2, p=p),
+        # Solarize the image randomly with thresholds 0.75, 0.9
+        T.RandomSolarize(threshold=192, p = p),
+        T.RandomSolarize(threshold=230, p = p),
+        # equalize the image
+        T.RandomEqualize(p=p), 
+        # autocontrast the image
+        T.RandomAutocontrast(p=p),
                     ]
+        return non_geo_transforms

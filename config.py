@@ -13,15 +13,16 @@ config = {
         
     },
      
-    "save" : False,
+    "save" : True,
     
-    "augment": False, # use non geometric augmentations
+    "augment": True, # use non geometric augmentations
+    "augment_p": 0.5, # probability of using non geometric augmentations
 
-    "use_box" : True,
+    "use_box" : False,
     "log_interval" : 1,
-    "num_epochs" : 200,
+    "num_epochs" : 1000,
 
-    "img_size" : 224, #224 ,
+    "img_size" : 224, #224,
     "patch_size" : 14, # DINOv2
 
 
@@ -37,20 +38,20 @@ config = {
         "ema_step" : 32,
         "freeze_backbone" : False,
 
-        "resumed_model" : None, # None 
+        "resumed_model" : None, #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
     },
 
     "opt": {
         "type" : "sgd", # "sgd", "adam", "adamw"
 
-        "lr" : 2e-4, # 1e-3 from scratch
-        "target_lr" : 5e-5,
+        "lr" : 1e-3, # 1e-3 from scratch
+        "target_lr" : 1e-4,
 
         "momentum" : 0.9,
-        "weight_decay" : 5e-2, # 5e-2 from baseline recipe, 1e-4 from repo
+        "weight_decay" : 1e-4, # 5e-2 from baseline recipe, 1e-4 from repo
 
         "scheduler" : "step", # "cosine", "step", 
-        "step_size" : 10,   
+        "step_size" : 100,   
         "gamma" : 1, # true gamma will be automatically calculated
 
     },
@@ -59,7 +60,7 @@ config = {
 
     "other": {
         "label_smoothing": 0.1,
-        "ema_decay": 0.995, # 0.995 for 300ep, 0.99 for 100ep
+        "ema_decay": 0.997, # 0.995 for 300ep, 0.99 for 100ep
     },
 
 }

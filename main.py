@@ -186,9 +186,8 @@ def main(cfg, name = None):
 
     if cfg.model.resumed_model is not None:
         print("Resuming training from checkpoint")
-        ema.load_state_dict(torch.load(cfg.model.resumed_model))
-
-        model.load_state_dict(ema.module.state_dict())
+        model.load_state_dict(torch.load(cfg.model.resumed_model))
+        ema.module.load_state_dict(torch.load(cfg.model.resumed_model))
 
 
     nowd = []
@@ -244,11 +243,13 @@ def main(cfg, name = None):
 
     train_model(model,ema, criterion,optimizer, scheduler ,train_loader, val_loader, cfg)
 
-    final_acc, _ = val_model(ema,criterion,val_loader)
+    final_ema_acc, _ = val_model(ema,criterion,val_loader)
+    final_ema_acc = final_ema_acc.item()
 
+    final_acc, _ = val_model(model,criterion,val_loader)
     final_acc = final_acc.item()
 
-    print(f"Final accuracy (ema) : {round(final_acc*100,3)}%")
+    print(f"Final accuracy (ema) : {round(final_ema_acc*100,3)}%")
 
     if cfg.save:
         if name is None:
@@ -256,14 +257,16 @@ def main(cfg, name = None):
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         if os.path.isdir("models") is False:
             os.mkdir("models")
-        torch.save(ema.state_dict(),f"models/{name}_ac{round(final_acc*100,3)}_{date}.pt")
-        print("Model saved!")
+        torch.save(ema.state_dict(),f"models/{name}_ema_ac{round(final_ema_acc*100,3)}_{date}.pt")
+        torch.save(model.state_dict(),  f"models/{name}_ac{round(final_acc*100,3    )}_{date}.pt")
+        print("Models saved!")
 
     
 
 def main_sweep():
 
     results = {
+    -1.0:   0.640, # neg thr means random crop
     0.0:    0.5,
     0.05:   0.6,
     0.0955: 0.640,
@@ -338,9 +341,9 @@ if __name__=="__main__":
                     project="beyond_sota_sweep")
 
     else: # single run
-        cfg.use_box = True
-        cfg.THR = 0.0955
-        name = "r50-match_maIOU_500ep_v2"
+        cfg.use_box = False
+        cfg.THR = -1
+        name = "r50-new-baseline"
 
         if cfg.wandb:
             run = wandb.init(project="beyond_sota",
@@ -354,20 +357,3 @@ if __name__=="__main__":
 
         ############################################################################################################################################################################
 
-        
-
-
-
-
-    """"while (ans:= input("Do you want to save the model? (y/n) ")).lower() not in ["y","n"]:
-        print("Invalid input, please try again!")
-
-
-    if ans.lower() == "y":
-        date = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        os.mkdir("checkpoints", exist_ok=True)
-        torch.save(ema.state_dict(),f"{cfg.model.type}_{cfg.num_epoch}ep_ac{round(final_acc*100,3)}_{date}.pt")
-        print("Model saved!")
-
-    elif ans.lower() == "n":
-        print("Model not saved! Continuing...")"""
