@@ -102,7 +102,7 @@ def load_cub_datasets(cfg, ratio = 0.7):
     list_indexes = list(img_names.keys())
 
     if cfg.deterministic:
-        rd.seed(cfg.seed)
+        rd.seed(42) # hardcoded seed to prevent mixing train and val when transfering from a pretrained model
     rd.shuffle(list_indexes)
 
     train_indexes = list_indexes[:int(len(list_indexes)*ratio)]

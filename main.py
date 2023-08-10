@@ -30,7 +30,12 @@ def train_model(model : nn.Module ,
     
     model.train()
 
+    L_loss = []
+    L_acc = []
+
     for epoch in range(cfg.num_epochs):
+
+
 
         for i,(images,labels) in tqdm(enumerate(train_loader),total=len(train_loader)):
             images = images.to(device)
@@ -49,35 +54,36 @@ def train_model(model : nn.Module ,
         
         scheduler.step()
 
-        L_ema_acc = []
+        
 
         if (epoch+1)%cfg.log_interval == 0:
             acc, loss_ = val_model(model,criterion,val_loader)
+            
 
             ema_acc, ema_loss = val_model(ema,criterion,val_loader)
-            L_ema_acc.append(ema_acc)
-
+            
             lr=scheduler.get_last_lr()[0]
             
             if cfg.wandb:
+                L_acc.append(float(acc.cpu()))
+                L_loss.append(float(loss_.cpu()))
 
-            
-                if len(L_ema_acc) > 10:
-                    running_mean = sum(L_ema_acc[-10:])/10
-
-                    wandb.log({"running_mean":running_mean,
-                                "epoch":epoch+1,})
+                running_acc = np.mean(L_acc)
+                running_loss = np.mean(L_loss)
                 
-
-
                 wandb.log({"loss":loss_,
                             "acc":acc,
+
+                            "running_acc":running_acc,
+                            "running_loss":running_loss,
+
                             "ema_loss":ema_loss,
                             "ema_acc":ema_acc,
+
                             "lr":lr,
                             "epoch":epoch+1,})
 
-            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} (ema : {ema_loss:.4f}) | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.04g}")
+            print(f"Epoch [{epoch+1}/{cfg.num_epochs}] | Loss: {loss_.item():.4f} (ema : {ema_loss:.4f}) | Acc: {acc:.4f} (ema : {ema_acc:.4f})) | lr : {lr:.3g}")
 
 def val_model(model : nn.Module,
               criterion,
@@ -185,10 +191,33 @@ def main(cfg, name = None):
         model.load_state_dict(ema.module.state_dict())
 
 
-    params = []
-    for param in model.parameters():
-        if param.requires_grad:
-            params.append(param)
+    nowd = []
+    wd = []
+    num_parameters = int(torch.tensor([x.numel() for x in model.parameters()]).sum().item())
+    trained_parameters = 0
+
+    for x in model.modules():
+        if isinstance(x, nn.BatchNorm2d) or isinstance(x, nn.Linear):
+            if isinstance(x, nn.BatchNorm2d):
+                nowd.append(x.weight)
+                trained_parameters += x.weight.numel()
+            else:
+                wd.append(x.weight)
+                trained_parameters += x.weight.numel()
+            nowd.append(x.bias)
+            trained_parameters += x.bias.numel()
+        elif isinstance(x, nn.Conv2d):
+            wd.append(x.weight)
+            trained_parameters += x.weight.numel()
+    assert(num_parameters==trained_parameters)
+
+    print(f"Number of parameters : {num_parameters:,}")
+
+    nowd = [param for param in nowd if param.requires_grad]
+    wd = [param for param in wd if param.requires_grad]
+    params = [{"params":nowd,"weight_decay":0.0},{"params":wd,"weight_decay":cfg.opt.weight_decay}]
+
+    print(f"Parameters optimized : {sum([x.numel() for x in nowd]):,} (no weight decay) + {sum([x.numel() for x in wd]):,} (weight decay)")
     
 
     if cfg.opt.type == "adam":
@@ -234,6 +263,19 @@ def main(cfg, name = None):
 
 def main_sweep():
 
+    results = {
+    0.0:    0.5,
+    0.05:   0.6,
+    0.0955: 0.640,
+    0.17:   0.7,
+    0.32:   0.8,
+    0.52:   0.9,
+    0.7:    0.95,
+    0.8:    0.98,
+    0.9:    0.99,
+    1.0:    1.0,
+    }
+
     with wandb.init(project="beyond_sota_sweep",entity="jonathanlystahiti"):
         config = wandb.config
         print("Current config : ",config)
@@ -242,6 +284,7 @@ def main_sweep():
             del cfg.THR
         except:
             pass
+        cfg.maIOU = results.get(thr,"Not found")
         wandb.config.update(cfg)
         cfg.THR = thr
         print(cfg.THR)
@@ -270,7 +313,12 @@ if __name__=="__main__":
     print(f"Running on {machine_name}")
 
     if cfg.sweeprun: # sweep
-        sweep_config = {
+        
+        if cfg.sweep.resume:
+            sweep_id = cfg.sweep.id
+            print("Part of an existing sweep")
+        else:
+            sweep_config = {
             'method': 'grid', #grid, random
             'metric': {
                 'name': 'ema_acc',
@@ -281,9 +329,6 @@ if __name__=="__main__":
                     "values": [0, 0.001, 0.1, 0.2, 0.3, 0.4 ,0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
                 },
             }}
-        if cfg.sweep.resume:
-            sweep_id = cfg.sweep.id
-        else:
             sweep_id = wandb.sweep(sweep_config, project="beyond_sota_sweep")
 
         print("Sweep id : ",sweep_id)
@@ -295,7 +340,7 @@ if __name__=="__main__":
     else: # single run
         cfg.use_box = True
         cfg.THR = 0.0955
-        name = "r50-match_maIOU_500ep"
+        name = "r50-match_maIOU_500ep_v2"
 
         if cfg.wandb:
             run = wandb.init(project="beyond_sota",
