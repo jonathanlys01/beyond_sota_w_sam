@@ -15,6 +15,8 @@ config = {
      
     "save" : False,
     
+    "augment": False, # use non geometric augmentations
+
     "use_box" : True,
     "log_interval" : 1,
     "num_epochs" : 200,

@@ -87,8 +87,14 @@ class CUBDataset(Dataset):
 
         return img, label # img is a tensor, label is an int
  
+from custom_transform import non_geo_transforms
 
 def load_cub_datasets(cfg, ratio = 0.7):
+
+    if cfg.augment:
+        iou_ok_transorms = transforms.RandomChoice(non_geo_transforms)
+    else:
+        iou_ok_transorms = transforms.Compose([])
 
 
     img_names = {}
@@ -115,9 +121,8 @@ def load_cub_datasets(cfg, ratio = 0.7):
                        box_file=cfg.dataset.box_file,
                           transforms=transforms.Compose([
                                 transforms.RandomHorizontalFlip(),
-                                #transforms.TrivialAugmentWide(),
                                 transforms.ToTensor(),
-                                #transforms.RandomErasing(0.1),
+                                iou_ok_transorms,
                                 ]),
                           use_box = cfg.use_box,
                           size = cfg.img_size,
