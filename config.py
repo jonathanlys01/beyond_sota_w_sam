@@ -9,7 +9,7 @@ config = {
     "sweep" : {
         "resume" : True,
         "count" : None, # None for infinite
-        "id" : "ytv28h9v", #"0fm2rs0t",
+        "id" : "0nq7lnoy", #"0fm2rs0t",
         
     },
      
@@ -39,13 +39,13 @@ config = {
         "ema_step" : 32,
         "freeze_backbone" : False,
 
-        "resumed_model" : None, #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
+        "resumed_model" : "/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt", #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
     },
 
     "opt": {
         "type" : "sgd", # "sgd", "adam", "adamw"
 
-        "lr" : 1e-4, # 1e-3 from scratch
+        "lr" : 2e-4, # 1e-3 from scratch
         "target_lr" : 1e-5,
 
         "momentum" : 0.9,

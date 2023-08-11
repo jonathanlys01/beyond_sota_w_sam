@@ -289,19 +289,23 @@ def main_sweep():
         config = wandb.config
         print("Current config : ",config)
 
-        maiou = config["maIOU"]
+        maiou = config["maiou"]
+        determinist = config["deterministic"]
         
         try:
             del cfg.THR
+            del cfg.deterministic
         except:
-            pass
+            print("THR and deterministic not in cfg")
         
         cfg.maIOU = maiou
+        
         thr = (2*(maiou-0.5))**(1/0.4)
 
         cfg.THR = thr
         print("THR : ",thr)
         wandb.config.update(cfg)
+        cfg.deterministic = determinist
         print(cfg.THR)
         
         main(cfg)
