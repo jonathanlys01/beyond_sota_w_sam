@@ -44,8 +44,8 @@ def LocalizedRandomResizedCrop(
         Ao = max(Wo, Ho)**2
 
         scale = (max(scale[0], (THR*Ao)/area_image),
-                 min(scale[1], (1/(THR + 1e-8))*Ao/area_image))
-                 #scale[1])
+                 #min(scale[1], (1/(THR + 1e-8))*Ao/area_image))
+                 scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
@@ -92,7 +92,7 @@ def LocalizedRandomResizedCrop(
         if crop_bbox[1] + crop_bbox[3] > image.size[0]:
             crop_bbox[3] = image.size[0] - crop_bbox[1]
 
-        crop_bbox = [int(x) for x in crop_bbox]
+        crop_bbox = [abs(int(x)) for x in crop_bbox] # avoid crash with negative values
 
         return F.resized_crop(image, *crop_bbox, (size,size), antialias=True)
 

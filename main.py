@@ -272,30 +272,38 @@ def main_sweep():
 
     results = {
     -1.0:   0.640, # neg thr means random crop
-    0.0:    0.5,
-    0.05:   0.6,
+    0.0:    0.500,
+    0.015:  0.550,
+    0.05:   0.605,
     0.0955: 0.640,
-    0.17:   0.7,
+    0.17:   0.700,
+    0.235:   0.750,
     0.32:   0.8,
+    0.405:  0.85,
     0.52:   0.9,
-    0.7:    0.95,
-    0.8:    0.98,
-    0.9:    0.99,
-    1.0:    1.0,
+    0.66:   0.95,
+    0.99:    1.0,
     }
 
     with wandb.init(project="beyond_sota_sweep",entity="jonathanlystahiti"):
         config = wandb.config
         print("Current config : ",config)
-        thr = config["THR"]
+
+        maiou = config["maIOU"]
+        
         try:
             del cfg.THR
         except:
             pass
-        cfg.maIOU = results.get(thr,"Not found")
-        wandb.config.update(cfg)
+        
+        cfg.maIOU = maiou
+        thr = (2*(maiou-0.5))**(1/0.4)
+
         cfg.THR = thr
+        print("THR : ",thr)
+        wandb.config.update(cfg)
         print(cfg.THR)
+        
         main(cfg)
     wandb.finish()
 
