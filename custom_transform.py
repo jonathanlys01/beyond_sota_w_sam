@@ -44,7 +44,8 @@ def LocalizedRandomResizedCrop(
         Ao = max(Wo, Ho)**2
 
         scale = (max(scale[0], (THR*Ao)/area_image),
-                 scale[1])
+                 min(scale[1], (1/(THR + 1e-8))*Ao/area_image))
+                 #scale[1])
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
@@ -145,16 +146,24 @@ def get_non_geo_transforms(p: float = 0.5):
         non_geo_transforms = [
         # randomly change brightness, contrast, saturation and hue
         T.ColorJitter(brightness=p*0.5, contrast=p*0.5, saturation=p*0.5, hue=p*0.1),
+
         # Posterize the image randomly with 4, 3, 2 bits
-        T.RandomPosterize(bits=4, p=p), 
-        T.RandomPosterize(bits=3, p=p),
-        T.RandomPosterize(bits=2, p=p),
+        T.RandomChoice(
+            [T.RandomPosterize(bits=4, p=p), 
+            T.RandomPosterize(bits=3, p=p),
+            T.RandomPosterize(bits=2, p=p),]
+        ),
+
         # Solarize the image randomly with thresholds 0.75, 0.9
-        T.RandomSolarize(threshold=192, p = p),
-        T.RandomSolarize(threshold=230, p = p),
+        T.RandomChoice(
+             [T.RandomSolarize(threshold=192, p = p),
+              T.RandomSolarize(threshold=230, p = p),]
+        ),
+
         # equalize the image
         T.RandomEqualize(p=p), 
         # autocontrast the image
+
         T.RandomAutocontrast(p=p),
                     ]
         return non_geo_transforms

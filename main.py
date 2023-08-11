@@ -185,9 +185,14 @@ def main(cfg, name = None):
 
 
     if cfg.model.resumed_model is not None:
-        print("Resuming training from checkpoint")
-        model.load_state_dict(torch.load(cfg.model.resumed_model))
-        ema.module.load_state_dict(torch.load(cfg.model.resumed_model))
+        if "ema" in cfg.model.resumed_model:
+            print("Resuming training from ema checkpoint")
+            ema.load_state_dict(torch.load(cfg.model.resumed_model))
+            model.load_state_dict(ema.module.state_dict())
+        else:
+            print("Resuming training from checkpoint")
+            model.load_state_dict(torch.load(cfg.model.resumed_model))
+            ema.module.load_state_dict(torch.load(cfg.model.resumed_model))
 
 
     nowd = []

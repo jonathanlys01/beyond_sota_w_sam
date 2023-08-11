@@ -81,10 +81,9 @@ class CUBDataset(Dataset):
         img_name = os.path.join(self.path_to_img, self.img_names[id]) # img_names[index] contains the folder
         label = self.labels[id]
 
-
         img = Image.open(img_name).convert("RGB")
 
-        img = self.preprocessing_transforms(img) # mostly color augmentation, done before crop
+        img = self.preprocessing_transforms(img) # mostly color augmentation, done before crop, these transforms will not mess up the box
 
         if self.use_box:
             box = self.boxes[id]
@@ -136,6 +135,11 @@ def load_cub_datasets(cfg, ratio = 0.7):
                         label_file=cfg.dataset.label_file,
                         box_file=cfg.dataset.box_file,
                         transforms=transforms.Compose([
+                            # augmix replaces cutmix
+                            transforms.RandomHorizontalFlip(),
+                            transforms.AugMix(severity=2),
+                            transforms.ToTensor(),
+                            ]) if cfg.use_augment_mix else transforms.Compose([
                             transforms.RandomHorizontalFlip(),
                             transforms.ToTensor(),
                             ]),
