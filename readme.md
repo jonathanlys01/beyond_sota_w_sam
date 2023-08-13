@@ -8,3 +8,9 @@ Masks format:
 - shape: (N_masks, H,W) where N_masks is the number of masks for the image, (H,W) is the shape of the og image
 - device = cpu
 
+The script will create 
+- a folder masks_{i} (i is the number of the run)
+- an error file called errors.txt
+- an info file called masks_info.json
+- all the masks 
+
