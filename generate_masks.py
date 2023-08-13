@@ -68,11 +68,9 @@ if __name__ == "__main__":
     sam_checkpoint = "sam_vit_h_4b8939.pth"
     model_type = "vit_h"
     
-    img_path = cfg.dataset.img_dir
-    
-    list_images = get_list_images_recursive(img_path)
-    
-    root = os.path.dirname(img_path) # get parent directory
+    root = cfg.dataset.img_dir
+
+    list_images = get_list_images_recursive(root)
     
     # load model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
