@@ -7,7 +7,7 @@ import numpy as np
 from config import cfg
 import json
 
-def generate_masks(amg, list_imgs, root, sam_checkpoint, model_type, **kwargs):
+def generate_masks(amg, list_imgs, root,info):
     
     # output folder
     
@@ -15,12 +15,14 @@ def generate_masks(amg, list_imgs, root, sam_checkpoint, model_type, **kwargs):
     while os.path.exists(out_path):
         out_path = out_path[:-1] + str(int(out_path[-1]) + 1)
     os.mkdir(out_path)
+    print(f"Saving masks and info to {out_path}")
     
     error_names = []
     
     d = {} # will store img_name: other info
 
     for img_name in tqdm(list_imgs):
+        #print(img_name)
         img = cv2.imread(os.path.join(root, img_name))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -40,10 +42,10 @@ def generate_masks(amg, list_imgs, root, sam_checkpoint, model_type, **kwargs):
                                                                      "predicted_iou",
                                                                      "stability_score"
                                                                      ]} for mask in masks]
-        # list of dicts, each dict represents a mask, with keys:  
-        # 'area', 'bbox', 'predicted_iou', 'point_coords', 'stability_score', 'crop_box' (not "mask")
+
         d[img_name] = new
     
+    d["setup"] = info
     with open(os.path.join(out_path, "masks_info.json"), "w") as f:
         json.dump(d, f)     
         
@@ -70,38 +72,31 @@ if __name__ == "__main__":
     
     root = cfg.dataset.img_dir
 
-    list_images = get_list_images_recursive(root)
+    list_images = get_list_images_recursive(root)[:10]
     
     # load model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
+    print(f"Loaded model {model_type} from {sam_checkpoint}")
     
-    amg = SamAutomaticMaskGenerator(sam)
-    
-    # First run with default parameters (fine)
-    generate_masks(amg, list_images, root, sam_checkpoint, model_type)
-    
-    """
-    def __init__(model: Sam, 
-    points_per_side: Optional[int]=32, 
-    points_per_batch: int=64, 
-    pred_iou_thresh: float=0.88, 
-    stability_score_thresh: float=0.95, 
-    stability_score_offset: float=1.0, 
-    box_nms_thresh: float=0.7, 
-    crop_n_layers: int=0, 
-    crop_nms_thresh: float=0.7,
-    crop_overlap_ratio: float=512 / 1500, 
-    crop_n_points_downscale_factor: int=1, 
-    point_grids: Optional[List[np.ndarray]]=None, 
-    min_mask_region_area: int=0, 
-    output_mode: str='binary_mask') -> None
-    """
-    
-    amg_rough = SamAutomaticMaskGenerator(sam, points_per_side = 15, stability_score_thresh = 0.9)
+    # First run with fine parameters
+    amg = SamAutomaticMaskGenerator(sam, points_per_side = 40,)
+    info = {"model_type": model_type,
+            "points_per_side": 40,}
+    generate_masks(amg, list_images, root, info)
     
     # Second run with rougher parameters
-    generate_masks(amg_rough, list_images, root, sam_checkpoint, model_type)
+    amg_rough = SamAutomaticMaskGenerator(sam, points_per_side = 16, 
+                                          stability_score_thresh = 0.92,
+                                          pred_iou_thresh=0.86,
+                                          )
+    
+    info = {"model_type": model_type,
+            "points_per_side": 16,
+            "stability_score_thresh": 0.92,
+            "pred_iou_thresh": 0.86,
+            }
+    generate_masks(amg_rough, list_images, root, info)
     
 

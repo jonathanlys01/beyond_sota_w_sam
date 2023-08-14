@@ -76,7 +76,7 @@ config['A_machine'] = name
 
 if name.startswith('sl-tp-br') : # running on remote server
     config["dataset"] = {
-        "img_dir" : "/nasbrain/datasets/CUB_200_2011/images/",
+        "img_dir" : "/nasbrain/datasets/CUB_200_2011/images",
         "box_file" : "/nasbrain/datasets/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/nasbrain/datasets/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/nasbrain/datasets/CUB_200_2011/images.txt",
@@ -88,7 +88,7 @@ if name.startswith('sl-tp-br') : # running on remote server
 
 elif name.startswith("someone"): # running on local machine
     config["dataset"] = {
-        "img_dir" : "/mnt/data/CUB_200_2011/images/",
+        "img_dir" : "/mnt/data/CUB_200_2011/images",
         "box_file" : "/mnt/data/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/mnt/data/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/mnt/data/CUB_200_2011/images.txt",

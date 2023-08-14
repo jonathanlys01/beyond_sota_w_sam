@@ -3,3 +3,6 @@ wandb/
 models/
 .ipynb_checkpoints/
 test_transform.ipynb
+
+# checkpoint files
+*.pth
