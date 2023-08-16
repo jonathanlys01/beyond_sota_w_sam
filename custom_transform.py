@@ -14,7 +14,7 @@ def LocalizedRandomResizedCrop(
                 THR: float = 0.5,
                 scale: tuple = (0.08, 1.0),
                 ratio: tuple = (3. / 4., 4. / 3.),
-                patch_size: int = 14, # for ViT
+                patch_size: int = 14, # for ViT, TODO : adapt for ViT
                 ):
     
         """

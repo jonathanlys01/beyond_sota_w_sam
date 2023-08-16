@@ -16,6 +16,7 @@ def generate_masks(amg, list_imgs, root,info):
         out_path = out_path[:-1] + str(int(out_path[-1]) + 1)
     os.mkdir(out_path)
     print(f"Saving masks and info to {out_path}")
+    print(f"Config used: {info}")
     
     error_names = []
     
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     
     root = cfg.dataset.img_dir
 
-    list_images = get_list_images_recursive(root)[:10]
+    list_images = get_list_images_recursive(root)
     
     # load model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -98,5 +99,7 @@ if __name__ == "__main__":
             "pred_iou_thresh": 0.86,
             }
     generate_masks(amg_rough, list_images, root, info)
+
+    print("Done!")
     
 

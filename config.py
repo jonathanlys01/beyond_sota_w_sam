@@ -9,7 +9,7 @@ config = {
     "sweep" : {
         "resume" : True,
         "count" : None, # None for infinite
-        "id" : "0nq7lnoy", #"0fm2rs0t",
+        "id" : "ffts7oug", #"0nq7lnoy", #"0fm2rs0t",
         
     },
      
@@ -61,7 +61,7 @@ config = {
 
     "other": {
         "label_smoothing": 0.1,
-        "ema_decay": 0.997, # 0.995 for 300ep, 0.99 for 100ep
+        "ema_decay": 0.999, # 0.995 for 300ep, 0.99 for 100ep, when resuming, use 0.999
     },
 
 }

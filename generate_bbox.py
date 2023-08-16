@@ -4,7 +4,8 @@ from config import cfg
 import torchvision
 import torch
 from torchvision.models import ResNet
-
+import os
+from tqdm import tqdm
 
 def get_copy_features(model : ResNet, type_ = 'resnet') -> ResNet:
     copy = deepcopy(model)
@@ -19,14 +20,13 @@ def get_copy_features(model : ResNet, type_ = 'resnet') -> ResNet:
 
 
 from dataset import load_cub_datasets
+train_dataset, val_dataset = load_cub_datasets(cfg, vanilla = True)
 
-train_dataset, _ = load_cub_datasets(cfg)
 
 
-features = {i: [] for i in range(cfg.num_classes)}
 
-model = torchvision.models.resnet50(
-    weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+model = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+
 
 model_features = get_copy_features(model)
 
@@ -34,20 +34,35 @@ model_features.eval()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_features.to(device)
 
-for i, (images, labels) in enumerate(train_dataset):
-    
-    images = images.to(device)
-    labels = labels.to(device)
-    
-    features_ = model_features(images)
-    
-    for j, label in enumerate(labels):
-        features[label.item()].append(features_[j].detach().cpu().numpy())
-        
-for i in features:
-    features[i] = torch.tensor(features[i]).mean(dim = 0)
 
-torch.save(features, 'features.pt') # dict of tensors of shape (feature_dim,)
+temp_dir = os.path.join(
+    os.getcwd(),
+    "temp",
+)
+
+features_list = [[torch.zeros(model.fc.in_features).to(device),0] for _ in range(cfg.model.n_classes)]# classes start at 1
+del model
+
+# calculate class prototypes from training set
+
+for i, (imgs, labels) in tqdm(enumerate(train_dataset), total=len(train_dataset)):
+
+    for img, label in zip(imgs, labels):
+
+        img = img.unsqueeze(0) # 4D tensor expected
+
+        img = img.to(device)
+
+        with torch.inference_mode():
+            features = model_features(img)
+        
+        features_list[int(label)][0] += features.squeeze(0) # squeeze to remove the batch dimension
+        features_list[int(label)][1] += 1
+
+
+
+features_list = [v[0]/v[1] for v in features_list if v[1] != 0] # average the features
+
 
     
 """

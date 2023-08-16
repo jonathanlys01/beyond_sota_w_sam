@@ -6,3 +6,8 @@ test_transform.ipynb
 
 # checkpoint files
 *.pth
+
+
+# temp directory
+
+temp/

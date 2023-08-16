@@ -137,7 +137,42 @@ def train_ncm(model : nn.Module,train_loader, device = torch.device("cuda" if to
     model.fc = NCM(n_features, cfg.model.n_classes)
     model.fc.centers = torch.nn.Parameter(centers) # transpose to get n_features x n_classes
 
+def test_only(cfg):
+    train_loader,val_loader = load_cub_datasets(cfg)
+    if cfg.model.type == "resnet50":
+        model = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    
+        model.fc = nn.Linear(model.fc.in_features,cfg.model.n_classes)
+    elif cfg.model.type.startswith("dinov2"):
+        model = get_model(cfg.model.type,cfg.model.n_classes)
+    else:
+        raise NotImplementedError
+    
+    ema = ExponentialMovingAverage(model, decay=0.9999)
 
+    assert cfg.model.resumed_model is not None
+
+
+    if "ema" in cfg.model.resumed_model:
+        print("Resuming training from ema checkpoint")
+        ema.load_state_dict(torch.load(cfg.model.resumed_model))
+        model.load_state_dict(ema.module.state_dict())
+    else:
+        print("Resuming training from checkpoint")
+        model.load_state_dict(torch.load(cfg.model.resumed_model))
+        ema.module.load_state_dict(torch.load(cfg.model.resumed_model))
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    criterion = nn.CrossEntropyLoss()
+
+    train_acc, train_loss = val_model(model,criterion,train_loader)
+    print(f"Train acc : {train_acc:.4f} | Train loss : {train_loss:.4f}")
+
+
+    val_acc, val_loss = val_model(model,criterion,val_loader)
+    print(f"Val acc : {val_acc:.4f} | Val loss : {val_loss:.4f}")
     
 def main(cfg, name = None):
 
@@ -267,46 +302,43 @@ def main(cfg, name = None):
         print("Models saved!")
 
     
-
 def main_sweep():
 
-    results = {
-    -1.0:   0.640, # neg thr means random crop
-    0.0:    0.500,
-    0.015:  0.550,
-    0.05:   0.605,
-    0.0955: 0.640,
-    0.17:   0.700,
-    0.235:   0.750,
-    0.32:   0.8,
-    0.405:  0.85,
-    0.52:   0.9,
-    0.66:   0.95,
-    0.99:    1.0,
-    }
 
     with wandb.init(project="beyond_sota_sweep",entity="jonathanlystahiti"):
+
         config = wandb.config
+
         print("Current config : ",config)
 
-        maiou = config["maiou"]
-        determinist = config["deterministic"]
+        dummy_maiou = config["maiou"]
+
         
         try:
             del cfg.THR
-            del cfg.deterministic
         except:
-            print("THR and deterministic not in cfg")
+            print("THR not in cfg")
         
-        cfg.maIOU = maiou
         
-        thr = (2*(maiou-0.5))**(1/0.4)
+        if 0.5 <= dummy_maiou <= 1.0:
+            thr = (2*(dummy_maiou-0.5))**(1/0.4)
+
+            maiou = dummy_maiou
+
+        else: # 1 < dummy_maiou 
+            thr = -1 # will not use box
+
+            maiou = 1.4 + (dummy_maiou-1.0)
+
+
 
         cfg.THR = thr
-        print("THR : ",thr)
+        cfg.maiou = maiou
+
         wandb.config.update(cfg)
-        cfg.deterministic = determinist
-        print(cfg.THR)
+
+        print("THR : ",cfg.THR)
+        print("maiou : ",cfg.maiou)
         
         main(cfg)
     wandb.finish()
@@ -358,19 +390,21 @@ if __name__=="__main__":
                     project="beyond_sota_sweep")
 
     else: # single run
+
         cfg.use_box = False
         cfg.THR = -1
-        name = "r50-new-baseline"
+        for i in range(5):
+            name = f"check_baseline_run_{i}"
 
-        if cfg.wandb:
-            run = wandb.init(project="beyond_sota",
-                            config=cfg,
-                            name=name,)
+            if cfg.wandb:
+                run = wandb.init(project="beyond_sota_sweep", # run in sweep config
+                                config=cfg,
+                                name=name,)
             
-        main(cfg,name=name)
+            main(cfg,name=name)
 
-        if cfg.wandb:
-            wandb.finish()
+            if cfg.wandb:
+                wandb.finish()
 
         ############################################################################################################################################################################
 
