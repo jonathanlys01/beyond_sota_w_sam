@@ -92,6 +92,8 @@ elif name.startswith("someone"): # running on local machine
         "box_file" : "/mnt/data/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/mnt/data/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/mnt/data/CUB_200_2011/images.txt",
+
+        "segmentation_file" : "/mnt/data/CUB_200_2011/masks_0/masks_info.json",
     }
     #config["num_workers"] = 8
 else:

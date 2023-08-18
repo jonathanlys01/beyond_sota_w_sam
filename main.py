@@ -311,7 +311,7 @@ def main_sweep():
 
         print("Current config : ",config)
 
-        dummy_maiou = config["maiou"]
+        dummy_maiou = config["dummy_maiou"]
 
         
         try:
@@ -333,12 +333,14 @@ def main_sweep():
 
 
         cfg.THR = thr
-        cfg.maiou = maiou
+        cfg.maIOU = maiou
 
         wandb.config.update(cfg)
+        wandb.config["THR"] = cfg.THR
+        wandb.config["maiou"] = cfg.maIOU
 
         print("THR : ",cfg.THR)
-        print("maiou : ",cfg.maiou)
+        print("maiou : ",cfg.maIOU)
         
         main(cfg)
     wandb.finish()

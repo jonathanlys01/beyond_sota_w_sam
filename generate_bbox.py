@@ -6,6 +6,9 @@ import torch
 from torchvision.models import ResNet
 import os
 from tqdm import tqdm
+import numpy as np
+
+from dataset import load_box_dataset
 
 def get_copy_features(model : ResNet, type_ = 'resnet') -> ResNet:
     copy = deepcopy(model)
@@ -19,10 +22,21 @@ def get_copy_features(model : ResNet, type_ = 'resnet') -> ResNet:
     return copy
 
 
-from dataset import load_cub_datasets
-train_dataset, val_dataset = load_cub_datasets(cfg, vanilla = True)
+name = "masks_0"
+
+seg = os.path.join(
+    os.path.dirname(cfg.dataset.img_dir), # parent directory
+    name
+)
+
+assert os.path.exists(seg)
+
+seg_file = os.path.join(seg,
+                       "masks_info.json")
 
 
+cfg.batch_size = 8
+train_dataset, val_dataset = load_box_dataset(cfg, seg_file)
 
 
 model = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
@@ -45,7 +59,7 @@ del model
 
 # calculate class prototypes from training set
 
-for i, (imgs, labels) in tqdm(enumerate(train_dataset), total=len(train_dataset)):
+for i, (imgs,_, labels) in tqdm(enumerate(train_dataset), total=len(train_dataset)): # _ is the img_index
 
     for img, label in zip(imgs, labels):
 
@@ -59,9 +73,45 @@ for i, (imgs, labels) in tqdm(enumerate(train_dataset), total=len(train_dataset)
         features_list[int(label)][0] += features.squeeze(0) # squeeze to remove the batch dimension
         features_list[int(label)][1] += 1
 
-
-
 features_list = [v[0]/v[1] for v in features_list if v[1] != 0] # average the features
+features_list = torch.stack(features_list).to(device) # size (n_classes, 2048)
+
+
+d = {}
+cosine = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+
+# calculate the accuracy on the validation set
+for imgs,idxs,labels in tqdm(val_dataset, total=len(val_dataset)):
+
+    imgs = imgs.to(device)
+
+    with torch.inference_mode():
+        outs = model_features(imgs)
+
+
+    for out, idx, label in zip(outs, idxs, labels):
+
+        out = out.unsqueeze(0) # size (1, 2048)
+    
+        logits = cosine(out, features_list).cpu().numpy() # size (n_classes,)
+        if not int(idx) in d.keys():
+
+            d[int(idx)] = {"label": int(label), 
+                           "logits": logits}
+        
+        else:
+
+            if max(d[int(idx)]["logits"]) < max(logits):
+                    # replace the logits when the new logits are better
+                    d[int(idx)] = {"label": int(label), 
+                                "logits": logits}
+            
+print(
+    sum(
+        [1 for k,v in d.items() if v["label"] == np.argmax(v["logits"])] # if the label is the same as the argmax of the logits
+    )
+)
+
 
 
     

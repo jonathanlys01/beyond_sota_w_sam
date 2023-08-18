@@ -5,6 +5,7 @@ import torch
 import os
 
 from torchvision import transforms
+import torchvision.transforms.functional as F
 from custom_transform import LocalizedRandomResizedCrop
 
 from config import cfg
@@ -14,6 +15,8 @@ import random as rd
 import torchvision
 
 from PIL import Image
+
+import json
 
 class CUBDataset(Dataset):
 
@@ -115,7 +118,7 @@ class CUBDataset(Dataset):
             else:
                 img = transforms.RandomResizedCrop((self.size,self.size))(img)
 
-        else:
+        else: # val
             img = transforms.Resize(self.size)(img)
             img = transforms.CenterCrop(self.size)(img)
 
@@ -239,6 +242,190 @@ def load_cub_datasets(cfg, all_vanilla = False):
     return train_loader, val_loader
                         
     
+class BboxDataset(Dataset):
+    """
+    Dataset for loading crops corresponding to bounding boxes
+    """
+
+    def __init__(self,
+                 split : str, # train or val
+
+                 path_to_img, 
+                 img_names, 
+                 indexes, 
+                 label_file, 
+                 box_file,
+                 segmenation_file,
+
+                 size : int,
+                 patch_size,
+                 THR,
+                 ) -> None:
+        super().__init__()
+
+        self.split = split
+        print(f"Loading {split} dataset")
+        
+        self.path_to_img = path_to_img
+        self.img_names = img_names
+        self.indexes = indexes
+        self.label_file = label_file
+        self.box_file = box_file
+        self.segmenation_file = segmenation_file
+
+        self.size = size
+        self.patch_size = patch_size
+        self.THR = THR
+        
+
+        # GT
+        with open(label_file,"r") as f:
+            temp = f.readlines()
+            # format i class_number
+            self.labels = {int(line.split()[0]) : int(line.split()[1])-1 for line in temp if int(line.split()[0]) in indexes}
+
+        with open(box_file,"r") as f:
+            temp = f.readlines()
+            # format i x y w h
+            self.boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp if int(line.split()[0]) in indexes} # remove the first element which is the image index, result in x y w h
+
+        assert len(self.labels) == len(self.boxes) == len(self.img_names) == len(self.indexes) , "Length of labels, boxes, img_names, indexes are not equal"
+        
+        self.reverse_img_names = {v:k for k,v in self.img_names.items()} # path : index
+        # Segmentation
+        
+        with open(segmenation_file,"r") as f:
+            segmentation_dict = json.load(f)
+
+        if self.split == "val": # unpack
+            
+            unpacked = []
+            # segmentation_dict keys are the paths to the images + a setup entry
+            for key in segmentation_dict.keys():
+                if key != "setup" and key in self.img_names.values(): # filter on the indexes
+                    for mask_info in segmentation_dict[key]:
+                        unpacked.append((self.reverse_img_names[key],
+                                        mask_info)) # (index, mask_info)
+            
+            self.segmentation = unpacked # list of (index, mask_info)
+
+        else: # do not unpack
+            self.segmentation = []
+
+            for img_name in self.img_names.values():
+                self.segmentation.append((self.reverse_img_names[img_name],
+                                          {"bbox" : segmentation_dict[img_name][0]["crop_box"]} # crop_box is the full image
+                ))
+
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
+        ])
+
+    
+        """
+        Note : the mask info is a dict containing a bbox key
+        """
+
+    def __len__(self):
+        return len(self.segmentation)
+    
+    def __getitem__(self, index):
+        """
+        Returns the index of the image ad the mask info
+        """
+        img_index, mask_info = self.segmentation[index]
+        img_path = self.img_names[img_index]
+        
+        img = Image.open(os.path.join(self.path_to_img,img_path)).convert("RGB")
+
+        label = self.labels[img_index]
+
+
+        # Crop
+        x,y,w,h = mask_info["bbox"]
+
+        img = LocalizedRandomResizedCrop(img, x,y,w,h, 
+                                         size=self.size, 
+                                         patch_size=self.patch_size, 
+                                         THR=self.THR, 
+                                         relative_upper_scale=1.0, ratio=(1.0,1.0))
+
+        img = self.transform(img)
+
+        return img, img_index, label
+
+        
+def load_box_dataset(cfg, segmenation_file):
+    ratio = 0.7 # don't change this
+
+    with open(cfg.dataset.img_file,"r") as f:
+        temp = f.readlines()
+        # format i path
+        img_names = {int(line.split()[0]):line.split()[1] for line in temp} # index : path
+        
+
+    list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
+
+    rd.seed(42) # hardcoded seed to prevent mixing train and val when transfering from a pretrained model
+    rd.shuffle(list_indexes)
+
+    train_indexes = list_indexes[:int(len(list_indexes)*ratio)]
+    val_indexes = list_indexes[int(len(list_indexes)*ratio):]
+
+
+    train_dataset = BboxDataset(split="train",
+                                path_to_img=cfg.dataset.img_dir,
+                                img_names = {i:img_names[i] for i in train_indexes},
+                                indexes = train_indexes,
+                                label_file=cfg.dataset.label_file,
+                                box_file=cfg.dataset.box_file,
+                                segmenation_file=segmenation_file,
+                                
+                                size = cfg.img_size,
+                                patch_size = cfg.patch_size,
+                                THR = 1.0,
+                                )
+    
+    val_dataset = BboxDataset(split="val",
+                                path_to_img=cfg.dataset.img_dir,
+                                img_names = {i:img_names[i] for i in val_indexes},
+                                indexes = val_indexes,
+                                label_file=cfg.dataset.label_file,
+                                box_file=cfg.dataset.box_file,
+                                segmenation_file=segmenation_file,
+                                
+                                size = cfg.img_size,
+                                patch_size = cfg.patch_size,
+                                THR = 1.0,
+                                )
+
+    train_loader = DataLoader(train_dataset,
+                              batch_size=cfg.batch_size,
+                              shuffle=False,
+                              num_workers=cfg.num_workers,
+                              pin_memory=True,
+                              persistent_workers=True)
+    val_loader = DataLoader(val_dataset,
+                            batch_size=cfg.batch_size,
+                            shuffle=False,
+                            num_workers=cfg.num_workers,
+                            pin_memory=True,
+                            persistent_workers=True)
+    
+    return train_loader, val_loader
+
+    
+
+
+if __name__ == "__main__":
+    from config import cfg
+    train_loader, val_loader = load_box_dataset(cfg, cfg.dataset.segmentation_file)
+
+    print("train", len(train_loader))
+    print("val", len(val_loader))
+    print("Success")
+
 
 
 

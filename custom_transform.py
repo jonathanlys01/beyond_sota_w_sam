@@ -15,6 +15,7 @@ def LocalizedRandomResizedCrop(
                 scale: tuple = (0.08, 1.0),
                 ratio: tuple = (3. / 4., 4. / 3.),
                 patch_size: int = 14, # for ViT, TODO : adapt for ViT
+                relative_upper_scale = None, # set to 1 when cropping bbox with non square aspect ratio (very stretched)
                 ):
     
         """
@@ -43,9 +44,13 @@ def LocalizedRandomResizedCrop(
 
         Ao = max(Wo, Ho)**2
 
-        scale = (max(scale[0], (THR*Ao)/area_image),
-                 #min(scale[1], (1/(THR + 1e-8))*Ao/area_image))
-                 scale[1])
+        if relative_upper_scale is None:
+            scale = (max(scale[0], (THR*Ao)/area_image),
+                    #min(scale[1], (1/(THR + 1e-8))*Ao/area_image))
+                    scale[1])
+        else:
+             scale = (max(scale[0], (THR*Ao)/area_image),
+                    min(scale[1], relative_upper_scale)*Ao/area_image)
         
         effective_scale = random.uniform(*scale)
         log_ratio = tuple(np.log(r) for r in ratio)
@@ -102,6 +107,9 @@ def LocalizedRandomErase(image: Image.Image,
                          THR: float = 0.5,
                          ):
     """
+
+    WIP
+    
     Args : 
 
         image (PIL Image): Image to be erased.
