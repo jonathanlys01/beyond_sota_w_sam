@@ -36,6 +36,8 @@ class CUBDataset(Dataset):
                  THR = 0.7,
                  pre_crop_transforms = transforms.Compose([]),
                  post_crop_transforms = transforms.Compose([]),
+
+                 source = "gt", # "gt", or path to sam or dinov2_vanilla or dinov2_ft boxes
                  ) -> None:
         super().__init__()
 
@@ -54,6 +56,8 @@ class CUBDataset(Dataset):
         
         self.pre_crop_transforms = pre_crop_transforms
         self.post_crop_transforms = post_crop_transforms
+
+        self.source = source
         
         if self.split == "train":
 
@@ -81,10 +85,18 @@ class CUBDataset(Dataset):
             # format i class_number
             self.labels = {int(line.split()[0]) : int(line.split()[1])-1 for line in temp if int(line.split()[0]) in indexes}
 
-        with open(box_file,"r") as f:
-            temp = f.readlines()
-            # format i x y w h
-            self.boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp if int(line.split()[0]) in indexes} # remove the first element which is the image index, result in x y w h
+        if self.source == "gt":
+
+            with open(box_file,"r") as f:
+                temp = f.readlines()
+                # format i x y w h
+                self.boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp if int(line.split()[0]) in indexes} # remove the first element which is the image index, result in x y w h
+
+        else: # source is the path to the json file containing the boxes, already in the right format
+            with open(source,"r") as f:
+                self.boxes = json.load(f)
+            self.boxes = {int(k):v for k,v in self.boxes.items() if int(k) in indexes} # filter on the indexes
+
 
         assert len(self.labels) == len(self.boxes) == len(self.img_names) == len(self.indexes) , "Length of labels, boxes, img_names, indexes are not equal"
 
@@ -134,6 +146,7 @@ class CUBDataset(Dataset):
 from custom_transform import get_non_geo_transforms
 
 def load_cub_datasets(cfg, all_vanilla = False):
+    assert cfg.source == "gt" or (".json" in cfg.source), "source must be either gt or a path to a json file containing the boxes"
     '''
     DON'T CHANGE THE RATIO
     '''
@@ -172,6 +185,26 @@ def load_cub_datasets(cfg, all_vanilla = False):
         # format i path
         img_names = {int(line.split()[0]):line.split()[1] for line in temp} # index : path
         
+    """with open(cfg.dataset.split_file,"r") as f:
+        temp = f.readlines()
+        # format i 1 or 0
+        split = {int(line.split()[0]) : int(line.split()[1]) for line in temp}
+
+    train_indexes = [i for i in split.keys() if split[i] == 1] # get the indexes of the train images
+
+    val_indexes = [i for i in split.keys() if split[i] == 0] # get the indexes of the val images
+
+    remaining_train = int(len(split)*ratio) - len(train_indexes)
+
+    # split is approx 50%, take imgs from val to train to have a 70/30 split
+
+    train_indexes += val_indexes[:remaining_train]
+
+    val_indexes = val_indexes[remaining_train:]
+
+    print(f"Train : {len(train_indexes)}")
+    print(f"Val : {len(val_indexes)}")
+    print(f"Split : {len(train_indexes)/(len(train_indexes)+len(val_indexes))}")"""
 
     list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
 
@@ -203,6 +236,8 @@ def load_cub_datasets(cfg, all_vanilla = False):
                        pre_crop_transforms= pre_crop_transforms,
                        post_crop_transforms= post_crop_transforms,
 
+                       source =  cfg.source,
+
                         )
     
     val = CUBDataset(split="val",
@@ -219,6 +254,8 @@ def load_cub_datasets(cfg, all_vanilla = False):
 
                      pre_crop_transforms= transforms.Compose([]), # no color augmentations
                      post_crop_transforms= transforms.Compose([transforms.ToTensor(),normalize]), # classic post crop transforms
+
+                     source =  cfg.source,
                     
                      )
     
@@ -314,7 +351,9 @@ class BboxDataset(Dataset):
 
             for img_name in self.img_names.values():
                 self.segmentation.append((self.reverse_img_names[img_name],
-                                          {"bbox" : segmentation_dict[img_name][0]["crop_box"]} # crop_box is the full image
+                                          {"bbox" :   segmentation_dict[img_name][0]["crop_box"],
+                                           "crop_box":segmentation_dict[img_name][0]["crop_box"]
+                                           } # crop_box is the full image
                 ))
 
         self.transform = transforms.Compose([
@@ -345,15 +384,30 @@ class BboxDataset(Dataset):
         # Crop
         x,y,w,h = mask_info["bbox"]
 
-        img = LocalizedRandomResizedCrop(img, x,y,w,h, 
-                                         size=self.size, 
-                                         patch_size=self.patch_size, 
-                                         THR=self.THR, 
-                                         relative_upper_scale=1.0, ratio=(1.0,1.0))
+        if self.split == "val":
+            gt_bbox = self.boxes[img_index]
+        else:
+            gt_bbox = mask_info["crop_box"]
+
+        
+        if self.split == "val":
+            img = LocalizedRandomResizedCrop(img, x,y,w,h, 
+                                            size=self.size, 
+                                            patch_size=self.patch_size, 
+                                            THR=self.THR, 
+                                            relative_upper_scale=1.0, ratio=(1.0,1.0))
+        else: # center crop on train
+            img = transforms.Compose([
+                transforms.Resize(self.size),
+                transforms.CenterCrop(self.size)
+            ])(img)
 
         img = self.transform(img)
 
-        return img, img_index, label
+        box = torch.tensor([x,y,w,h],dtype=torch.int32)
+        gt_bbox = torch.tensor(gt_bbox,dtype=torch.int32)
+    
+        return img, img_index, label, box, gt_bbox
 
         
 def load_box_dataset(cfg, segmenation_file):
@@ -364,14 +418,34 @@ def load_box_dataset(cfg, segmenation_file):
         # format i path
         img_names = {int(line.split()[0]):line.split()[1] for line in temp} # index : path
         
+    with open(cfg.dataset.split_file,"r") as f:
+        temp = f.readlines()
+        # format i 1 or 0
+        split = {int(line.split()[0]) : int(line.split()[1]) for line in temp}
 
-    list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
+    train_indexes = [i for i in split.keys() if split[i] == 1] # get the indexes of the train images
+
+    val_indexes = [i for i in split.keys() if split[i] == 0] # get the indexes of the val images
+
+
+    remaining_train = int(len(split)*ratio) - len(train_indexes)
+
+    # split is approx 50%, take imgs from val to train to have a 70/30 split
+
+    train_indexes += val_indexes[:remaining_train]
+
+    val_indexes = val_indexes[remaining_train:]
+
+    print(f"Train : {len(train_indexes)}")
+    print(f"Val : {len(val_indexes)}")
+    print(f"Split : {len(train_indexes)/(len(train_indexes)+len(val_indexes))}")
+    """list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
 
     rd.seed(42) # hardcoded seed to prevent mixing train and val when transfering from a pretrained model
     rd.shuffle(list_indexes)
 
     train_indexes = list_indexes[:int(len(list_indexes)*ratio)]
-    val_indexes = list_indexes[int(len(list_indexes)*ratio):]
+    val_indexes = list_indexes[int(len(list_indexes)*ratio):]"""
 
 
     train_dataset = BboxDataset(split="train",

@@ -20,10 +20,7 @@ def get_model(type, n_classes):
     returns: torch.nn.Module -> the model with the head replaced
 
     The architecutre of the head is:
-    nn.Linear(model.head.in_features, MLP_dim),
-    nn.ReLU(),
-    nn.Linear(MLP_dim, n_classes),
-    nn.Softmax(dim=1)
+    nn.Linear(model.head.in_features,  n_classes),
     """
     if not type in load_refs:
         raise ValueError("Invalid model type, should be in {}".format(load_refs))
@@ -33,7 +30,6 @@ def get_model(type, n_classes):
 
     model.head = nn.Linear(model.norm.weight.shape[0], n_classes)
         
-
     for param in model.parameters():
         param.requires_grad = True
 

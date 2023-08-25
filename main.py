@@ -98,7 +98,7 @@ def val_model(model : nn.Module,
 
     with torch.inference_mode():
     
-        for i,(images,labels) in enumerate(val_loader):
+        for i,(images,labels) in tqdm(enumerate(val_loader), total=len(val_loader)):
             images = images.to(device)
             labels = labels.to(device)
 
@@ -188,25 +188,11 @@ def main(cfg, name = None):
             if isinstance(m, nn.Linear):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
 
-        if cfg.model.freeze_backbone:
-            for param in model.parameters():
-                param.requires_grad = False
-            for param in model.fc.parameters():
-                param.requires_grad = True
-        else:
-            for param in model.parameters():
-                param.requires_grad = True
+
 
     elif cfg.model.type.startswith("dinov2"):
         model = get_model(cfg.model.type,cfg.model.n_classes)
-        if cfg.model.freeze_backbone:
-            for param in model.parameters():
-                param.requires_grad = False
-            for param in model.head.parameters():
-                param.requires_grad = True
-        else:
-            for param in model.parameters():
-                param.requires_grad = True
+        
     else:
         # TODO: add other models
         raise NotImplementedError 
@@ -229,34 +215,73 @@ def main(cfg, name = None):
             model.load_state_dict(torch.load(cfg.model.resumed_model))
             ema.module.load_state_dict(torch.load(cfg.model.resumed_model))
 
+    if cfg.model.type.startswith("resnet50"):
 
-    nowd = []
-    wd = []
-    num_parameters = int(torch.tensor([x.numel() for x in model.parameters()]).sum().item())
-    trained_parameters = 0
+        if cfg.model.freeze_backbone:
+            for param in model.parameters():
+                param.requires_grad = False
+            for param in model.fc.parameters():
+                param.requires_grad = True
+        else:
+            for param in model.parameters():
+                param.requires_grad = True
 
-    for x in model.modules():
-        if isinstance(x, nn.BatchNorm2d) or isinstance(x, nn.Linear):
-            if isinstance(x, nn.BatchNorm2d):
-                nowd.append(x.weight)
-                trained_parameters += x.weight.numel()
-            else:
+        nowd = []
+        wd = []
+        num_parameters = int(torch.tensor([x.numel() for x in model.parameters()]).sum().item())
+        trained_parameters = 0
+
+        for x in model.modules():
+            if isinstance(x, nn.BatchNorm2d) or isinstance(x, nn.Linear):
+                if isinstance(x, nn.BatchNorm2d):
+                    nowd.append(x.weight)
+                    trained_parameters += x.weight.numel()
+                else:
+                    wd.append(x.weight)
+                    trained_parameters += x.weight.numel()
+                nowd.append(x.bias)
+                trained_parameters += x.bias.numel()
+            elif isinstance(x, nn.Conv2d):
                 wd.append(x.weight)
                 trained_parameters += x.weight.numel()
-            nowd.append(x.bias)
-            trained_parameters += x.bias.numel()
-        elif isinstance(x, nn.Conv2d):
-            wd.append(x.weight)
-            trained_parameters += x.weight.numel()
-    assert(num_parameters==trained_parameters)
+        assert(num_parameters==trained_parameters)
 
-    print(f"Number of parameters : {num_parameters:,}")
+        print(f"Number of parameters : {num_parameters:,}")
 
-    nowd = [param for param in nowd if param.requires_grad]
-    wd = [param for param in wd if param.requires_grad]
-    params = [{"params":nowd,"weight_decay":0.0},{"params":wd,"weight_decay":cfg.opt.weight_decay}]
+        nowd = [param for param in nowd if param.requires_grad]
+        wd = [param for param in wd if param.requires_grad]
+        params = [{"params":nowd,"weight_decay":0.0},{"params":wd,"weight_decay":cfg.opt.weight_decay}]
 
-    print(f"Parameters optimized : {sum([x.numel() for x in nowd]):,} (no weight decay) + {sum([x.numel() for x in wd]):,} (weight decay)")
+        print(f"Parameters optimized : {sum([x.numel() for x in nowd]):,} (no weight decay) + {sum([x.numel() for x in wd]):,} (weight decay)")
+    
+    elif cfg.model.type.startswith("dinov2"):
+
+        if cfg.model.train_cls:
+            for param in model.parameters():
+                param.requires_grad = True
+            
+            # fc
+            wd = model.head.parameters()
+            # cls
+            nowd = model.cls_token # already a parameter
+
+            params = [{"params":nowd,"weight_decay":0.0},{"params":wd,"weight_decay":cfg.opt.weight_decay}]
+
+            print(f"Parameters optimized : {sum([x.numel() for x in nowd]):,} (no weight decay) + {sum([x.numel() for x in wd]):,} (weight decay)")
+
+            
+        else: # only train fc
+
+            for param in model.parameters():
+                param.requires_grad = False
+
+            for param in model.head.parameters():
+                param.requires_grad = True
+
+            params = [{"params":model.head.parameters(),"weight_decay":cfg.opt.weight_decay}]
+
+            print(f"Parameters optimized : {sum([x.numel() for x in model.head.parameters()]):,} (weight decay)")
+
     
 
     if cfg.opt.type == "adam":
@@ -354,6 +379,8 @@ import numpy as np
 
 if __name__=="__main__":
 
+    if cfg.model.type.startswith("dinov2"):
+        assert cfg.img_size % cfg.patch_size == 0, f"Image size must be divisible by patch size, nearest size is {cfg.patch_size*round(cfg.image_size/cfg.patch_size)}"
     
     if cfg.deterministic: 
         seed_ = cfg.seed
@@ -393,20 +420,31 @@ if __name__=="__main__":
 
     else: # single run
 
-        cfg.use_box = False
-        cfg.THR = -1
-        for i in range(5):
-            name = f"check_baseline_run_{i}"
+        cfg.use_box = True
+        cfg.THR = 1.0
+
+        
+        name = f"dino_box_prior"
+
+        for name, source in zip(
+            ["dino_van_run1","dino_ft_run1",
+             "dino_van_run2","dino_ft_run2",],
+            ["/mnt/data/CUB_200_2011/images/box_og.json",
+             "/mnt/data/CUB_200_2011/images/box_ft.json",
+             "/mnt/data/CUB_200_2011/images/box_og.json",
+             "/mnt/data/CUB_200_2011/images/box_ft.json",
+             ]
+            ):
 
             if cfg.wandb:
-                run = wandb.init(project="beyond_sota_sweep", # run in sweep config
-                                config=cfg,
-                                name=name,)
+                cfg.source = source
+                run = wandb.init(project="beyond_sota_sweep",config=cfg,name=name,)
             
-            main(cfg,name=name)
-
-            if cfg.wandb:
+                main(cfg,name=name)
                 wandb.finish()
+
+            else:
+                main(cfg,name=name)
 
         ############################################################################################################################################################################
 

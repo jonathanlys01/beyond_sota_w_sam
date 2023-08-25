@@ -82,23 +82,23 @@ if __name__ == "__main__":
     print(f"Loaded model {model_type} from {sam_checkpoint}")
     
     # First run with fine parameters
-    amg = SamAutomaticMaskGenerator(sam, points_per_side = 40,)
+    amg = SamAutomaticMaskGenerator(sam, 
+                                    points_per_side = 10,
+                                    stability_score_thresh=0.5,)
     info = {"model_type": model_type,
-            "points_per_side": 40,}
+            "points_per_side": 10,
+            "stability_score_thresh": 0.5,}
     generate_masks(amg, list_images, root, info)
-    
-    # Second run with rougher parameters
-    amg_rough = SamAutomaticMaskGenerator(sam, points_per_side = 16, 
-                                          stability_score_thresh = 0.92,
-                                          pred_iou_thresh=0.86,
-                                          )
-    
+
+
+    amg2 = SamAutomaticMaskGenerator(sam, 
+                                    points_per_side = 3,
+                                    stability_score_thresh=0.3,)
     info = {"model_type": model_type,
-            "points_per_side": 16,
-            "stability_score_thresh": 0.92,
-            "pred_iou_thresh": 0.86,
-            }
-    generate_masks(amg_rough, list_images, root, info)
+            "points_per_side": 3,
+            "stability_score_thresh": 0.3,}
+    generate_masks(amg2, list_images, root, info)
+    
 
     print("Done!")
     

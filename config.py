@@ -4,7 +4,7 @@ from box import Box
 config = {
      
     "wandb" : True,
-    "sweeprun" : True,
+    "sweeprun" : False,
 
     "sweep" : {
         "resume" : True,
@@ -12,8 +12,10 @@ config = {
         "id" : "ffts7oug", #"0nq7lnoy", #"0fm2rs0t",
         
     },
+
+    "source" : "/mnt/data/CUB_200_2011/images/box_ft.json", # path to box file or "gt"
      
-    "save" : False,
+    "save" : True,
     
     "augment": True, # use non geometric augmentations
     "augment_p": 1.0, # probability of using non geometric augmentations
@@ -38,8 +40,10 @@ config = {
         "n_classes" : 200,
         "ema_step" : 32,
         "freeze_backbone" : False,
+        "train_cls": True, # train cls token
 
-        "resumed_model" : "/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt", #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
+        "resumed_model" : "/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt", #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/Dino_train_ac87.45_2023-08-23_17:18:42.pt", 
+        #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
     },
 
     "opt": {
@@ -47,6 +51,7 @@ config = {
 
         "lr" : 2e-4, # 1e-3 from scratch
         "target_lr" : 1e-5,
+
 
         "momentum" : 0.9,
         "weight_decay" : 1e-4, # 5e-2 from baseline recipe, 1e-4 from repo
@@ -80,6 +85,7 @@ if name.startswith('sl-tp-br') : # running on remote server
         "box_file" : "/nasbrain/datasets/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/nasbrain/datasets/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/nasbrain/datasets/CUB_200_2011/images.txt",
+        "split_file" : "/nasbrain/datasets/CUB_200_2011/train_test_split.txt",
     }
     config["batch_size"] = 32 # 32 for remote server (rip little 1060 gpu)
     config["num_workers"] = 4
@@ -92,10 +98,11 @@ elif name.startswith("someone"): # running on local machine
         "box_file" : "/mnt/data/CUB_200_2011/bounding_boxes.txt",
         "label_file" : "/mnt/data/CUB_200_2011/image_class_labels.txt",
         "img_file" : "/mnt/data/CUB_200_2011/images.txt",
+        "split_file" : "/mnt/data/CUB_200_2011/train_test_split.txt",
 
         "segmentation_file" : "/mnt/data/CUB_200_2011/masks_0/masks_info.json",
     }
-    #config["num_workers"] = 8
+    config["num_workers"] = 8
 else:
     raise Exception("Unrecognized machine")
 
