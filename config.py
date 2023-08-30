@@ -21,7 +21,8 @@ config = {
     "augment_p": 1.0, # probability of using non geometric augmentations
     "use_augment_mix": False, # use augmix
 
-    "use_box" : True,
+    "use_box" : False,
+    "use_dino" : True,
     "log_interval" : 1,
     "num_epochs" : 200,
 
@@ -36,14 +37,17 @@ config = {
     "seed" : 42,
 
     "model" : {
-        "type" : "resnet50", #     "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14", "resnet50"
+        "type" : "resnet50", #   "dinov2_vits14","dinov2_vitb14","dinov2_vitl14","dinov2_vitg14", "resnet50"
         "n_classes" : 200,
         "ema_step" : 32,
         "freeze_backbone" : False,
         "train_cls": True, # train cls token
 
-        "resumed_model" : "/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt", #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/Dino_train_ac87.45_2023-08-23_17:18:42.pt", 
-        #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", # None 
+        "resumed_model" : "/home/someone/stage_jonathan/beyond_sota_w_sam/models/last_baseline_resnet50_good_split_ac84.35_2023-08-30_10:04:26.pt"
+        # "/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt", 
+        #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/Dino_train_ac87.45_2023-08-23_17:18:42.pt", 
+        #"/home/someone/stage_jonathan/beyond_sota_w_sam/models/r50-baseline-500_ep_ac74.433_2023-08-09_02:07:41.pt", 
+        # None
     },
 
     "opt": {
@@ -62,7 +66,7 @@ config = {
 
     },
 
-    "THR": 1, # threshold for IoU, will change if a sweep is running
+    "THR": -1, # threshold for IoU, will change if a sweep is running
 
     "other": {
         "label_smoothing": 0.1,

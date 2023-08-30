@@ -145,6 +145,7 @@ def LocalizedRandomErase(image: Image.Image,
 
 import torchvision.transforms as T
 
+
 # list of color/other related transformations (no geometric transformations)
 # A transformation will be randomly selected from the list (some transformations are repeated with different parameters)
 # TODO: take transformations from trivial augmentation paper

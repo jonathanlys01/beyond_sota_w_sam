@@ -13,6 +13,11 @@ import argparse
 
 from dataset import load_box_dataset
 
+
+"""
+Generates the bounding boxes from the model features and the crops from SAM's masks
+"""
+
 def get_copy_features(model : ResNet, type_ = 'resnet') -> ResNet:
     copy = deepcopy(model)
     

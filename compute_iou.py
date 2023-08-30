@@ -11,6 +11,11 @@ import os
 
 from tqdm import tqdm
 
+
+"""
+    This script is used to compute the mean IoU of the localized and random crops
+"""
+
 transform = RandomResizedCrop(224)
 
 
@@ -140,25 +145,21 @@ def compute_niou(bbox,gt,):
     return areaIntersection / (w3 * h3)
 
 
-with open(cfg.dataset.box_file) as f:
-    temp = f.readlines()
+def get_miou(THR):
 
-    # format i x y w h
+    with open(cfg.dataset.box_file) as f:
+        temp = f.readlines()
 
-    boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp}
+        # format i x y w h
 
-with open(cfg.dataset.img_file) as f:
-    temp = f.readlines()
+        boxes = {int(line.split()[0]):list(map(lambda x : int(float(x)), line.split()[1:])) for line in temp}
+
+    with open(cfg.dataset.img_file) as f:
+        temp = f.readlines()
 
     # format i path
 
     images_name = {int(line.split()[0]):line.split()[1] for line in temp}
-
-
-
-
-
-def get_miou(THR):
     miou_localized = []
 
     miou_random = []

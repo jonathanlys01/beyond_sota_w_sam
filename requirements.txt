@@ -49,8 +49,7 @@ Jinja2==3.1.2
 kaggle==1.5.16
 kiwisolver==1.4.4
 lightning==2.0.4
-lightning-cloud==0.5.37
-lightning-sam @ file:///home/someone/stage_jonathan/lightning-sam/lightning-sam
+lightning-cloud==0.5.37s
 lightning-utilities==0.9.0
 lit==16.0.6
 lvis==0.5.3

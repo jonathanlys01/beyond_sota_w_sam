@@ -18,6 +18,8 @@ from PIL import Image
 
 import json
 
+from dino_transform import DiNORandomResizedCrop
+
 class CUBDataset(Dataset):
 
     def __init__(self,
@@ -31,6 +33,7 @@ class CUBDataset(Dataset):
 
                  
                  use_box = False, 
+                 use_dino = False,
                  patch_size = 14, 
                  size = 224, 
                  THR = 0.7,
@@ -50,6 +53,7 @@ class CUBDataset(Dataset):
         self.box_file = box_file
 
         self.use_box = use_box
+        self.use_dino = use_dino
         self.patch_size = patch_size
         self.size = size
         self.THR = THR
@@ -58,8 +62,14 @@ class CUBDataset(Dataset):
         self.post_crop_transforms = post_crop_transforms
 
         self.source = source
+
+        
         
         if self.split == "train":
+
+            self.dino_transform = DiNORandomResizedCrop(size = (size,size), 
+                                                        dino_type="dinov2_vits14",
+                                                        antialias=True) if self.use_dino else transforms.Compose([])
 
             print("Train")
             if THR < 0:
@@ -74,6 +84,7 @@ class CUBDataset(Dataset):
     
         elif self.split == "val":
             print("Val")
+            self.dino_transform = transforms.Compose([]) 
             assert self.use_box == False, "Cannot use box in val"
   
         else:
@@ -127,8 +138,16 @@ class CUBDataset(Dataset):
                 box = self.boxes[id]
                 img = LocalizedRandomResizedCrop(img, *box, size = self.size, patch_size = self.patch_size, THR=self.THR)
                 
-            else:
+            elif not self.use_dino:
                 img = transforms.RandomResizedCrop((self.size,self.size))(img)
+            else: # use dino
+                img = transforms.ToTensor()(img)
+                _, H, W = img.shape
+                h = H + self.patch_size - H % self.patch_size
+                w = W + self.patch_size - W % self.patch_size
+                img = transforms.Resize((h,w))(img)
+                img = self.dino_transform(img) 
+                img = transforms.ToPILImage()(img.cpu())
 
         else: # val
             img = transforms.Resize(self.size)(img)
@@ -185,7 +204,7 @@ def load_cub_datasets(cfg, all_vanilla = False):
         # format i path
         img_names = {int(line.split()[0]):line.split()[1] for line in temp} # index : path
         
-    """with open(cfg.dataset.split_file,"r") as f:
+    with open(cfg.dataset.split_file,"r") as f:
         temp = f.readlines()
         # format i 1 or 0
         split = {int(line.split()[0]) : int(line.split()[1]) for line in temp}
@@ -204,15 +223,15 @@ def load_cub_datasets(cfg, all_vanilla = False):
 
     print(f"Train : {len(train_indexes)}")
     print(f"Val : {len(val_indexes)}")
-    print(f"Split : {len(train_indexes)/(len(train_indexes)+len(val_indexes))}")"""
+    print(f"Split : {len(train_indexes)/(len(train_indexes)+len(val_indexes))}")
 
-    list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
+    """list_indexes = list(img_names.keys()) # basically a range(0,11788) but ensures that all indexes are present
 
     rd.seed(42) # hardcoded seed to prevent mixing train and val when transfering from a pretrained model
     rd.shuffle(list_indexes)
 
     train_indexes = list_indexes[:int(len(list_indexes)*ratio)]
-    val_indexes = list_indexes[int(len(list_indexes)*ratio):]
+    val_indexes = list_indexes[int(len(list_indexes)*ratio):]"""
 
     if all_vanilla:
         post_crop_transforms = transforms.Compose([
@@ -222,6 +241,7 @@ def load_cub_datasets(cfg, all_vanilla = False):
         pre_crop_transforms = transforms.Compose([])
         print("Using vanilla dataset, the train dataset will behave like the val dataset")
 
+
     train = CUBDataset(split="train" if not all_vanilla else "val",
                        path_to_img=cfg.dataset.img_dir,
                        img_names = {i:img_names[i] for i in train_indexes},
@@ -229,6 +249,7 @@ def load_cub_datasets(cfg, all_vanilla = False):
                        label_file=cfg.dataset.label_file,
                        box_file=cfg.dataset.box_file,
                        use_box = cfg.use_box,
+                       use_dino = cfg.use_dino,
                        size = cfg.img_size,
                        patch_size = cfg.patch_size,
                        THR = cfg.THR,
@@ -248,6 +269,7 @@ def load_cub_datasets(cfg, all_vanilla = False):
                      box_file=cfg.dataset.box_file,
 
                      use_box = False, # no box in val
+                     use_dino = False,
                      size = cfg.img_size,
                      patch_size = cfg.patch_size,
                      THR = 0,
@@ -266,9 +288,9 @@ def load_cub_datasets(cfg, all_vanilla = False):
     train_loader = DataLoader(train,
                               batch_size=cfg.batch_size,
                               shuffle=True,
-                              num_workers=cfg.num_workers,
+                              num_workers=cfg.num_workers if not cfg.use_dino else 0, # dino is not compatible with multiprocessing
                               pin_memory=True,
-                              persistent_workers=True)
+                              persistent_workers=False if cfg.use_dino else True)
     val_loader = DataLoader(val,
                             batch_size=cfg.batch_size,
                             shuffle=False,

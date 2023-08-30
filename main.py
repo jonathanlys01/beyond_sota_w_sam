@@ -98,7 +98,7 @@ def val_model(model : nn.Module,
 
     with torch.inference_mode():
     
-        for i,(images,labels) in tqdm(enumerate(val_loader), total=len(val_loader)):
+        for i,(images,labels) in enumerate(val_loader): # for i,(images,labels) in tqdm(enumerate(val_loader), total=len(val_loader)):
             images = images.to(device)
             labels = labels.to(device)
 
@@ -420,31 +420,20 @@ if __name__=="__main__":
 
     else: # single run
 
-        cfg.use_box = True
-        cfg.THR = 1.0
 
+        name = f"first_test_dino_crop"
+
+        if cfg.wandb:
+                
+            run = wandb.init(project="beyond_sota",config=cfg,name=name,)
         
-        name = f"dino_box_prior"
+            main(cfg,name=name)
+            wandb.finish()
 
-        for name, source in zip(
-            ["dino_van_run1","dino_ft_run1",
-             "dino_van_run2","dino_ft_run2",],
-            ["/mnt/data/CUB_200_2011/images/box_og.json",
-             "/mnt/data/CUB_200_2011/images/box_ft.json",
-             "/mnt/data/CUB_200_2011/images/box_og.json",
-             "/mnt/data/CUB_200_2011/images/box_ft.json",
-             ]
-            ):
+        else:
+            main(cfg,name=name)
 
-            if cfg.wandb:
-                cfg.source = source
-                run = wandb.init(project="beyond_sota_sweep",config=cfg,name=name,)
-            
-                main(cfg,name=name)
-                wandb.finish()
 
-            else:
-                main(cfg,name=name)
 
         ############################################################################################################################################################################
 

@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from typing import Union
 import cv2
 
+
 def min_max_norm(x):
     # x is a numpy array
     return (x - np.min(x)) / (np.max(x) - np.min(x))
@@ -87,7 +88,6 @@ def get_self_attention(model,imgs):
     
         qkv = model.blocks[-1].attn.qkv
 
-
         B, N, C = maps.shape
 
         qkv_out = qkv(maps).reshape(B, N, 3, model.num_heads, C // model.num_heads).permute(2, 0, 3, 1, 4) # (3, B, num_heads, N, C//num_heads)
@@ -102,10 +102,9 @@ def get_self_attention(model,imgs):
         
         nh = model.num_heads
         assert B == 1, "B must be 1"
-        attn = attn[:, :, 0, 1:].reshape(nh, h_featmap, w_featmap)
+        attn = attn[:, :, 0, 1:].reshape(B,nh, h_featmap, w_featmap)
         
-        return attn.cpu().numpy()
-
+        return attn
 
 
 def postprocess_attention_maps(maps: np.ndarray,
@@ -152,6 +151,122 @@ def postprocess_attention_maps(maps: np.ndarray,
 
     return thresholded
 
+import torch.nn as nn
+class DensityGenerator(nn.Module):
+    """
+    Postprocess the attention maps to generate a density map : 
+    - Average over the heads
+    - Outlier removal (remove the max and replace it by the mean)
+    - Apply a gaussian filter
+    - Aplly a min max normalization
+    - Apply a softmax
+
+
+    Args:
+        kernel_size: The size of the gaussian kernel (Note that all images should be the same size, and are square)
+        temperature: The temperature used to apply the softmax
+    """
+
+    def __init__(self, kernel_size: int = 3, temperature: float = 2.):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.temperature = temperature
+
+        self.conv = nn.Conv2d(1, 1, kernel_size, padding=kernel_size//2, bias=False) # padding to keep the same size
+        self.conv.weight.data = torch.ones(1, 1, kernel_size, kernel_size) / (kernel_size**2) # gaussian kernel
+
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, maps: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            maps: A tensor of shape (B, num_heads, H, W)
+        Returns:
+            A tensor of shape (B, H, W)
+        """
+
+
+        # per image outlier removal
+
+        for map in maps:
+            map[map == torch.max(map)] = torch.mean(map)
+
+        maps = torch.mean(maps, dim=1) # B, H, W
+
+        maps = self.conv(maps.unsqueeze(1)).squeeze(1) # B, H, W (unsqueeze to add a channel dimension)
+
+        # per image min max normalization
+
+        for map in maps:
+            map = (map - torch.min(map)) / (torch.max(map) - torch.min(map))
+        
+        maps = self.softmax(maps.flatten(1) / self.temperature).reshape(maps.shape) # B, H, W
+
+        return maps
+
+def generate_point(density:torch.Tensor, og_size: tuple) -> torch.Tensor:
+
+    """
+    Generate a point from a density map
+
+    Args:
+        density: A tensor of shape (H//patch_size, W//patch_size)
+        og_size: The size of the original image (H, W)
+    Returns:
+        A tensor of shape (2,) containing the coordinates of the point
+
+    """
+
+    h, w = og_size 
+    H, W = density.shape
+
+    density = density.flatten()
+
+    density = density / torch.sum(density)
+
+    cum_density = torch.cumsum(density, dim=0)
+
+    u = torch.rand(1)
+
+    # the cumulative density is sorted in ascending order, so we find the nearest value 
+
+    i = torch.searchsorted(cum_density, u)
+
+    # we get the coordinates of the point
+
+    x = i % W
+    y = i // W
+
+    # we rescale the coordinates to the original image size and add a random offset
+
+    x = x * (w // W) + torch.randint(0, w // W, (1,))
+    y = y * (h // H) + torch.randint(0, h // H, (1,))
+
+    return torch.tensor([x,y])
+
+def generate_points(density:torch.Tensor, og_size: tuple, n:int) -> torch.Tensor:
+
+    """
+    Generate n points from a density map
+
+    Args:
+        density: A tensor of shape (H//patch_size, W//patch_size)
+        og_size: The size of the original image (H, W)
+        n: The number of points to generate
+    Returns:
+        A tensor of shape (n, 2) containing the coordinates of the points
+
+    """
+
+    points = torch.zeros((n,2))
+
+    for i in range(n):
+        points[i] = generate_point(density, og_size)
+
+    return points
+
+
+
 
 
 
@@ -162,9 +277,9 @@ if __name__ == "__main__":
     #root / folder / img_name
 
     root = cfg.dataset.img_dir
-    folder = os.listdir(root)[45]
+    folder = os.listdir(root)[15]
 
-    img_name = os.listdir(os.path.join(root, folder))[1]
+    img_name = os.listdir(os.path.join(root, folder))[10]
 
     path_to_img = os.path.join(root, folder, img_name)
 
@@ -177,6 +292,8 @@ if __name__ == "__main__":
 
     img = transforms.ToTensor()(img)
 
+    side = min(new_w, new_h)
+
     img = transforms.Resize((new_w, new_h), antialias=True)(img)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -186,10 +303,34 @@ if __name__ == "__main__":
 
     attn = get_self_attention(model, img)
 
-    attn = postprocess_attention_maps(attn, threshold="otsu")
 
-    plt.imshow(attn)
-    plt.axis("off")
+    generator = DensityGenerator().to(device)
+
+    attn = generator(attn)
+
+
+    #attn = postprocess_attention_maps(attn, threshold="otsu")
+
+    to_display = transforms.ToPILImage()(attn.squeeze(0).cpu()/attn.max().cpu()) # to display the attention map
+
+    print(attn.max(), attn.min())
+
+    to_display = cv2.resize(np.array(to_display), (new_h, new_w))
+
+    points = generate_points(attn.squeeze(0).cpu(), (new_w, new_h), 100).cpu().numpy()
+
+
+
+    plt.subplot(1,2,1)
+    plt.imshow(img.squeeze(0).permute(1,2,0).cpu())
+    plt.imshow(to_display, alpha=0.5)
+
+    print(max(to_display.flatten()), min(to_display.flatten()))
+    plt.subplot(1,2,2)
+    plt.imshow(to_display)
+    plt.scatter(points[:,0], points[:,1], c="red")
+    plt.colorbar()
+
     plt.show()
 
 
