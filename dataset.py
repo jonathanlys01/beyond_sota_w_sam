@@ -63,15 +63,11 @@ class CUBDataset(Dataset):
 
         self.source = source
 
-        
+        self.already_loaded = False
         
         if self.split == "train":
 
-            self.dino_transform = DiNORandomResizedCrop(size = (size,size), 
-                                                        dino_type="dinov2_vits14",
-                                                        antialias=True) if self.use_dino else transforms.Compose([])
-
-            print("Train")
+            self.dino_transform = transforms.Compose([]) 
             if THR < 0:
                 self.use_box = False
                 print("Negative threshold, using random crop")
@@ -81,6 +77,7 @@ class CUBDataset(Dataset):
             else:
                 print("Using random crop")
         
+            print("Using dino" if self.use_dino else "Not using dino")
     
         elif self.split == "val":
             print("Val")
@@ -117,6 +114,13 @@ class CUBDataset(Dataset):
     
     def __getitem__(self, index):
 
+        if self.split == "train" and not self.already_loaded:
+
+            self.dino_transform = DiNORandomResizedCrop(size = (self.size,self.size),
+                                                        dino_type="dinov2_vits14",
+                                                        antialias=True) if self.use_dino else transforms.Compose([])
+            self.already_loaded = True
+
         # Open everything
         id = self.indexes[index]
 
@@ -145,7 +149,7 @@ class CUBDataset(Dataset):
                 _, H, W = img.shape
                 h = H + self.patch_size - H % self.patch_size
                 w = W + self.patch_size - W % self.patch_size
-                img = transforms.Resize((h,w))(img)
+                img = transforms.Resize((h,w),antialias=True)(img)
                 img = self.dino_transform(img) 
                 img = transforms.ToPILImage()(img.cpu())
 
@@ -288,9 +292,10 @@ def load_cub_datasets(cfg, all_vanilla = False):
     train_loader = DataLoader(train,
                               batch_size=cfg.batch_size,
                               shuffle=True,
-                              num_workers=cfg.num_workers if not cfg.use_dino else 0, # dino is not compatible with multiprocessing
+                              num_workers=cfg.num_workers ,#if not cfg.use_dino else 0, # dino is not compatible with multiprocessing
                               pin_memory=True,
-                              persistent_workers=False if cfg.use_dino else True)
+                              multiprocessing_context="spawn",
+                              persistent_workers=True )#if not cfg.use_dino else False) 
     val_loader = DataLoader(val,
                             batch_size=cfg.batch_size,
                             shuffle=False,

@@ -63,7 +63,7 @@ class DiNORandomResizedCrop(torch.nn.Module):
         img = F.resize(img, (height - (height % 14), width - (width % 14)), interpolation=F.InterpolationMode.BICUBIC, antialias=self.antialias)
         _, height, width = F.get_dimensions(img)
 
-        img = img.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        img = img.to(self.device)
         attention_map = get_self_attention(self.model, img) # (num_heads, H//14, W//14)
         density_map = self.density_generator(attention_map).cpu()
         density_map = F.resize(density_map.unsqueeze(0), (height, width), interpolation=F.InterpolationMode.BICUBIC, antialias=self.antialias).squeeze() # (H, W)
@@ -95,7 +95,7 @@ class DiNORandomResizedCrop(torch.nn.Module):
 
         # Get distribution of the attention map
 
-        img = img.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        img = img.to(self.device)
         attention_map = get_self_attention(self.model, img) # (num_heads, H//14, W//14)
 
 
@@ -119,7 +119,7 @@ class DiNORandomResizedCrop(torch.nn.Module):
                 """i = torch.randint(0, height - h + 1, size=(1,)).item()
                 j = torch.randint(0, width - w + 1, size=(1,)).item()"""
 
-                x,y = generate_point(density_map, (h,w))
+                x,y = self.generate_point(density_map, (h,w))
 
                 i = y - h // 2
                 j = x - w // 2
@@ -152,6 +152,59 @@ class DiNORandomResizedCrop(torch.nn.Module):
         """
         i, j, h, w = self.get_params(img, self.scale, self.ratio)
         return F.resized_crop(img, i, j, h, w, self.size, self.interpolation, antialias=self.antialias)
+
+
+
+    def generate_point(
+            self,
+                    density:torch.Tensor, 
+                   target_size: tuple
+                   ) -> tuple [int, int]:
+
+        """
+        Generate a point from a density map
+
+        Args:
+            density: A tensor of shape (H, W)
+            og_size: The size of the original image (H, W)
+        Returns:
+            A tensor of shape (2,) containing the coordinates of the point
+
+        """
+
+        H, W = density.shape
+
+        h,w = target_size
+
+
+        density = density.flatten()
+
+        density = density / torch.sum(density)
+
+        cum_density = torch.cumsum(density, dim=0)
+
+
+        u = torch.rand(1).to(self.device)
+        # the cumulative density is sorted in ascending order, so we find the nearest value 
+        i = torch.searchsorted(cum_density, u).cpu()
+        # we get the coordinates of the point
+        x = i % W
+        y = i // W
+
+
+        # the crop must be within the image
+        for _ in range(10):
+
+            if (y - h // 2 < 0 or y + h // 2 >= H or x - w // 2 < 0 or x + w // 2 >= W):
+                u = torch.rand(1).to(self.device)
+                i = torch.searchsorted(cum_density, u).cpu()
+                x = i % W
+                y = i // W
+            else : return x,y # int, int
+
+        # if we can't find a point, we return the center of the image (fallback to center crop)
+        return W//2, H//2
+
 
     def __repr__(self) -> str:
         interpolate_str = self.interpolation.value
@@ -286,54 +339,3 @@ class DensityGenerator(torch.nn.Module):
         maps = temp.reshape(maps.shape)
 
         return maps.squeeze(0) # (H, W)
-
-
-
-
-def generate_point(density:torch.Tensor, 
-                   target_size: tuple
-                   ) -> tuple [int, int]:
-
-    """
-    Generate a point from a density map
-
-    Args:
-        density: A tensor of shape (H, W)
-        og_size: The size of the original image (H, W)
-    Returns:
-        A tensor of shape (2,) containing the coordinates of the point
-
-    """
-
-    H, W = density.shape
-
-    h,w = target_size
-
-
-    density = density.flatten()
-
-    density = density / torch.sum(density)
-
-    cum_density = torch.cumsum(density, dim=0)
-
-
-    u = torch.rand(1).to("cuda")
-    # the cumulative density is sorted in ascending order, so we find the nearest value 
-    i = torch.searchsorted(cum_density, u).cpu()
-    # we get the coordinates of the point
-    x = i % W
-    y = i // W
-
-
-    # the crop must be within the image
-    for _ in range(10):
-
-        if (y - h // 2 < 0 or y + h // 2 >= H or x - w // 2 < 0 or x + w // 2 >= W):
-            u = torch.rand(1).to("cuda")
-            i = torch.searchsorted(cum_density, u).cpu()
-            x = i % W
-            y = i // W
-        else : return x,y # int, int
-
-    # if we can't find a point, we return the center of the image (fallback to center crop)
-    return W//2, H//2

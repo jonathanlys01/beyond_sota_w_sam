@@ -3,7 +3,7 @@ from box import Box
 
 config = {
      
-    "wandb" : True,
+    "wandb" : False,
     "sweeprun" : False,
 
     "sweep" : {
@@ -17,7 +17,7 @@ config = {
      
     "save" : True,
     
-    "augment": True, # use non geometric augmentations
+    "augment": False, # use non geometric augmentations
     "augment_p": 1.0, # probability of using non geometric augmentations
     "use_augment_mix": False, # use augmix
 
@@ -62,7 +62,7 @@ config = {
 
         "scheduler" : "step", # "cosine", "step", 
         "step_size" : 10,   
-        "gamma" : 1, # true gamma will be automatically calculated
+        "gamma" : None, # true gamma will be automatically calculated
 
     },
 
@@ -106,7 +106,7 @@ elif name.startswith("someone"): # running on local machine
 
         "segmentation_file" : "/mnt/data/CUB_200_2011/masks_0/masks_info.json",
     }
-    config["num_workers"] = 8
+    config["num_workers"] = 4
 else:
     raise Exception("Unrecognized machine")
 
@@ -118,4 +118,5 @@ target_lr = cfg.opt.target_lr
 
 start_lr = cfg.opt.lr
 
-cfg.opt.gamma = np.exp(np.log(target_lr / start_lr) / (cfg.num_epochs / cfg.opt.step_size))
+if cfg.opt.gamma is None:
+    cfg.opt.gamma = np.exp(np.log(target_lr / start_lr) / (cfg.num_epochs / cfg.opt.step_size))
