@@ -210,6 +210,17 @@ How to configure the training (in the `config.py` file):
       - step_size : step size for the scheduler
       - gamma : gamma for the scheduler, calculated automatically from the step size and the target learning rate if None
 
+- `THR` : threshold for the LocalizedRandomResizedCrop function
+
+- `other` : 
+
+      - label_smoothing : value for the label smoothing
+      - ema_decay : decay for the exponential moving average of the weights
+
+- `A_machine` : Not a parameter, specifies the machine used for the training, used to set the number of workers for the dataloader
+
+- `dataset` : info about the datasets
+
 
 
 
