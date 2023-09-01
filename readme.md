@@ -30,6 +30,7 @@ where $scale_{eff}$ is the effective scale of the crop, $scale_{min}$ and $scale
 
 Then, translation ranges are computed on both axes to move the crop around the pseudo gt box. 
 The formula to compute the translation ranges is the following:
+
 $$
 \begin{cases}
       x_r = \alpha \frac{W_C+W_O}{2}\\
