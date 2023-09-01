@@ -23,9 +23,11 @@ The `LocalizedRandomResizedCrop` function takes a maiou threshold as a hyperpara
 
 This works by generating a random shape for the crop (size and aspect ratio). The lower bound of the scale is constrained by the size of the pseudo gt box as the area of the crop has to be greater than 
 the threshold times the area of the pseudo gt box. 
+
 $$
 scale_{eff}\sim U(\max(scale_{min},thr \frac{A_O}{A_I}),scale_{max})
 $$
+
 where $scale_{eff}$ is the effective scale of the crop, $scale_{min}$ and $scale_{max}$ are the lower and upper bounds of the scale, $A_O$ and $A_I$ are the areas of the pseudo gt box and the image.
 
 Then, translation ranges are computed on both axes to move the crop around the pseudo gt box. 
@@ -37,6 +39,7 @@ $$
 y_r = \alpha \frac{H_C+H_O}{2}
 \end{cases}
 $$
+
 where $W_C$ and $H_C$ are the width and height of the crop, $W_O$ and $H_O$ are the width and height of the pseudo gt box and and $\alpha = 1 - \sqrt{thr}$.
 
 Note that the parameter that is controlled is $thr$ and not the maIoU. It is possible to approximate the maIoU for a given $thr$ by computing the mean of the aiou for the crops generated with this $thr$.
