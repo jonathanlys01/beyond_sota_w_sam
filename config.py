@@ -94,7 +94,6 @@ if name.startswith('sl') : # running on remote server
     config["batch_size"] = 32 # 32 for remote server (rip little 1060 gpu)
     config["num_workers"] = 4
     config["model"]["resumed_model"] = "/homes/j21lys/stage/beyond_sota_w_sam/models/r50-new-baseline_ac76.275_2023-08-11_09:26:58.pt" # "resnet50-cub-no_box_ac77.15_2023-08-06_21:08:14.pt" 
-    # comment this line if you want to train from scratch
 
 elif name.startswith("so"): # running on local machine
     config["dataset"] = {
